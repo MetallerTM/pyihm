@@ -1,0 +1,11 @@
+# build folder
+build/
+dist/
+*.egg-info
+
+# Python bytecode
+*.pyc
+
+# vim swap files
+*.swp
+*.*~
