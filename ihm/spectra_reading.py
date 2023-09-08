@@ -79,6 +79,18 @@ class Multiplet:
 class Spectr:
     """ 
     Class that represents a spectrum as a collection of peaks and multiplets.
+    ---------
+    Attributes:
+    - acqus: dict
+        Acquisition parameters
+    - peaks: dict
+        Dictionary of peaks object, labelled according to the "idx" attribute of each single peak
+    - unique_groups: list
+        Identifier labels for the multiplets, without duplicates
+    - p_collections: dict
+        Dictionary of fit.Peak and Multiplet objects, labelled according to the group they belong to. In particular, self.p_collections[0] is a list of fit.Peak objects, whereas all the remaining entries consist of a single Multiplet object.
+    - total: 1darray
+        Placeholder for the trace of the spectrum, as sum of all the peaks.
     """
     def __init__(self, acqus, *peaks):
         """
@@ -163,23 +175,34 @@ def main():
     # Collect the parameters of the peaks
     spectra_peaks = [fit.read_vf(file) for file in spectra_dir]
     for all_peaks in spectra_peaks: # Unpacks the fitting regions
-        all_spectrum = []   # Create empty list of components
+        whole_spectrum = []   # Create empty list of components
         for region_peaks in all_peaks:      # Unpack the peaks in a given region
             # Remove total intensity and fitting window
-            region_peaks.pop('I')
+            I = region_peaks.pop('I')
             region_peaks.pop('limits')
             peaks = []      # Empty list
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
                 p = dict(region_peaks[key]) # Alias, shortcut
-                # Create the fit.Peak object and append it to the peaks list
+                # Create the fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
                 # TODO cambiare N per matchare le dimensioni dello spettro della miscela
-                peaks.append(fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=p['k'], x_g=p['x_g'], phi=0, N=None, group=p['group']))
+                peaks.append(fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=None, group=p['group']))
                 # Add the peak index as "floating" attribute
                 peaks[-1].idx = key
             # Once all the peaks in a given region have been generated, store them in the list 
-            all_spectrum.extend(peaks)
+            whole_spectrum.extend(peaks)
+
+        ## Normalize the intensity values
+        # Get the absolute values
+        K_vals = [p.par()['k'] for p in whole_spectrum]
+        # Normalize them
+        K_norm, _ = misc.molfrac(K_vals)
+        # Put the new ones
+        for p, k in zip(whole_spectrum, K_norm):
+            p.k = k
 
         # At the end, generate the Spectr object and add it to a list
-        components.append(Spectr(acqus, *all_spectrum))
+        components.append(Spectr(acqus, *whole_spectrum))
+
+        
 
     return acqus, components

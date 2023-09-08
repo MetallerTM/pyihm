@@ -79,8 +79,8 @@ def L2P(L, Xmin, Xmax):
     Convert a normalized parameter into its absolute counterpart.
     ------
     Parameters:
-    - L: lmfit.Parameter object
-        Normalized parameter
+    - L: float
+        Normalized parameter value
     - Xmin: float
         Lower bound of the "original" patameter
     - Xmax: float
@@ -92,9 +92,8 @@ def L2P(L, Xmin, Xmax):
     - value: float
         Correspondant value
     """
-    name = f'{L.name}'.replace('L', '', 1)
-    value = L.value * (Xmax - Xmin) + Xmin
-    return name, value
+    value = L * (Xmax - Xmin) + Xmin
+    return value
 
 
 def singlet2par(item, spect):
