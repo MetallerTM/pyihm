@@ -168,21 +168,10 @@ class Spectr:
         return total
 
 
-def main():
-    # Load the acqus dictionary of the (mixture) spectrum
-    M = Spectrum_1D('M.acqus', isexp=False)
-    M.fid = 7 * np.loadtxt('M.fid', dtype='complex128')
-    M.procs['zf'] = 16384
-    M.process()
-    M.plot()
-
-    acqus = M.acqus
-    N = M.r.shape[-1]
-
-    # Create list of peaks files
-    spectra_dir = ['C_1.fvf', 'C_2.fvf']
-
-
+def main(M, spectra_dir):
+    # Get "structural" parameters from M
+    acqus = dict(M.acqus)
+    N = M.r.shape[-1]       # Number of points for zero-filling
     ## Gather all the peaks
     components = [] # Whole spectra
     # Collect the parameters of the peaks
@@ -215,4 +204,4 @@ def main():
         # At the end, generate the Spectr object and add it to a list
         components.append(Spectr(acqus, *whole_spectrum))
 
-    return M, acqus, components
+    return components

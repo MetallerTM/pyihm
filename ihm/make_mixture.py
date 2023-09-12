@@ -6,7 +6,7 @@ from klassez import *
 
 comp_files = ['C_1.acqus', 'C_2.acqus']
 
-mixing_perc = [0.1, 0.9]
+mixing_perc = [0.2, 0.8]
 
 S = []
 for file in comp_files:
@@ -20,7 +20,7 @@ if 1:
     M = Spectrum_1D(file, isexp=False)
     mfid = mixing_perc[0] * S[0].fid + mixing_perc[1] * S[1].fid
     M.filename = 'M'
-    mfid += sim.noisegen(mfid.shape, M.acqus['o1'], M.acqus['t1'], s_n=0.1)
+    mfid += sim.noisegen(mfid.shape, M.acqus['o1'], M.acqus['t1'], s_n=0.05)
     M.fid = mfid
     M.process()
     M.plot()

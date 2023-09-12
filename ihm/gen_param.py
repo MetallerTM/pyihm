@@ -1,6 +1,8 @@
 #! /usr/bin/env python3
 
-from klassez import *
+import numpy as np
+import matplotlib.pyplot as plt
+import klassez as kz
 import lmfit as l
 
 def as_par(name, value, lims=0, rel=True):
@@ -102,7 +104,7 @@ def singlet2par(item, spect):
     The keys are of the form 'S#_p?' where # is spect and ? is the index of the peak.
     --------
     Parameters:
-    - item: fit.Peak object
+    - item: kz.fit.Peak object
         Peak to convert into Parameter. Make sure the .idx attribute is set!
     - spect: int
         Label of the spectrum to which the peak belongs to
@@ -197,24 +199,24 @@ def multiplet2par(item, spect, group):
     return p
 
 
-def main():
+def main(M, components):
     bds = {
             'u_big':    0.2,    #ppm
             'u_small':  0.01,   #ppm
             's': 0.01,  #%
             'k': 0.01,  #%
             }
-    from spectra_reading import main as spectra_reading
 
     # Get acqus and the spectra as collection of peaks
-    M, acqus, components = spectra_reading()
+    acqus = dict(M.acqus)
+    N = M.r.shape[-1]
     N_spectra = len(components) # Number of spectra
 
     # Create the parameter object
     param = l.Parameters()
     for k, S in enumerate(components):  # Loop on the spectra
         # Intensity
-        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 1)))
+        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 5)))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!
@@ -237,4 +239,4 @@ def main():
         if Q is not None:   # Add only the ones which has not an expression set, to avoid errors
             Lparam.add(Q)
 
-    return M, acqus, Lparam, param
+    return Lparam, param
