@@ -1,0 +1,27 @@
+Name      Value      Min      Max   Stderr     Vary     Expr Brute_Step
+S1_I    0.07053        0        1     None     True     None     None
+S1_k1    0.3337     0.33   0.3367     None     True     None     None
+S1_k2       0.5    0.495    0.505     None     True     None     None
+S1_k3    0.1658    0.165   0.1683     None     True     None     None
+S1_s1     3.012    2.979    3.039     None     True     None     None
+S1_s2     3.046    3.025    3.087     None     True     None     None
+S1_s3     3.084    3.047    3.109     None     True     None     None
+S1_u1         8      7.8      8.2     None     True     None     None
+S1_u2     6.001      5.8      6.2     None     True     None     None
+S1_u3       3.2      2.8      3.2     None     True     None     None
+S2_I      0.108        0        1     None     True     None     None
+S2_U1      8.25     8.05     8.45     None     True     None     None
+S2_k1    0.1331    0.132   0.1347     None     True     None     None
+S2_k2    0.2008    0.198    0.202     None     True     None     None
+S2_k3    0.4005    0.396    0.404     None     True     None     None
+S2_k4    0.2688    0.264   0.2693     None     True     None     None
+S2_o1    0.5042     0.49     0.51     None     True     None     None
+S2_o2   -0.5014    -0.51    -0.49     None     True     None     None
+S2_s1     3.027    2.978    3.038     None     True     None     None
+S2_s2     3.001    2.977    3.037     None     True     None     None
+S2_s3     3.014    2.979    3.039     None     True     None     None
+S2_s4     3.017    2.984    3.044     None     True     None     None
+S2_u1     8.755     -inf      inf     None    False S2_U1 + S2_o1     None
+S2_u2     7.749     -inf      inf     None    False S2_U1 + S2_o2     None
+S2_u3     5.002      4.8      5.2     None     True     None     None
+S2_u4     3.001      2.8      3.2     None     True     None     None

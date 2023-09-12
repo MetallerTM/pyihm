@@ -192,6 +192,7 @@ def multiplet2par(item, spect, group):
             f'S{spect}_k{idx}',
             dic['k'],
             0.01,
+            rel=False,
             ))
     return p
 
@@ -206,7 +207,7 @@ def main():
     from spectra_reading import main as spectra_reading
 
     # Get acqus and the spectra as collection of peaks
-    acqus, components = spectra_reading()
+    M, acqus, components = spectra_reading()
     N_spectra = len(components) # Number of spectra
 
     # Create the parameter object
@@ -236,4 +237,4 @@ def main():
         if Q is not None:   # Add only the ones which has not an expression set, to avoid errors
             Lparam.add(Q)
 
-    return acqus, Lparam, param
+    return M, acqus, Lparam, param

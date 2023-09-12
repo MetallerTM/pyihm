@@ -9,3 +9,11 @@ dist/
 # vim swap files
 *.swp
 *.*~
+
+# pictures
+*.tiff
+*.png
+*.eps
+*.jpg
+*.jpeg
+

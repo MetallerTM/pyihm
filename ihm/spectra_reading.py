@@ -32,6 +32,9 @@ class Multiplet:
         self.peaks = {}
         for peak in peaks:
             self.peaks[peak.idx] = peak
+            self.N = peak.N
+            if self.N is None:
+                self.N = int(self.acqus['TD'])
 
         # Compute the mean chemical shift and the offsets
         self.U = np.mean([p.u for _, p in self.peaks.items()])
@@ -67,7 +70,7 @@ class Multiplet:
         - trace: 1darray
             Sum of the components
         """
-        trace = np.zeros(self.acqus['TD'])  # Placeholder
+        trace = np.zeros(self.N)  # Placeholder
         for key, peak in self.peaks.items():
             # Recompute the absolute chemical shift
             self.peaks[key].u = self.U + self.u_off[key]
@@ -108,6 +111,9 @@ class Spectr:
         self.peaks = {}
         for peak in peaks:
             self.peaks[peak.idx] = peak
+            self.N = peak.N
+            if self.N is None:
+                self.N = int(self.acqus['TD'])
 
         ## Sort the peaks according to the 'group' attribute: this separates the multiplets
         all_groups = {key: p.group for key, p in self.peaks.items()}    # Get the group labels
@@ -119,7 +125,7 @@ class Spectr:
             # Get only the peaks of the same group
             keys = [key for key, item in all_groups.items() if item == g]
             if g == 0:  # They are independent, treated as singlets
-                self.p_collections[0] = [fit.Peak(self.acqus, **self.peaks[key].par()) for key in keys]
+                self.p_collections[0] = [fit.Peak(self.acqus, N=self.N, **self.peaks[key].par()) for key in keys]
                 # Add the labels as 'idx' attributes
                 for k, key in enumerate(keys):
                     self.p_collections[0][k].idx = key 
@@ -137,7 +143,7 @@ class Spectr:
         - total: 1darray
             Computed spectrum
         """
-        total = np.zeros(self.acqus['TD'])  # Placeholder
+        total = np.zeros(self.N)  # Placeholder
         for g in self.unique_groups:
             if g == 0:  # Group 0 is a list of peaks!
                 for s in self.p_collections[g]:
@@ -163,11 +169,18 @@ class Spectr:
 
 
 def main():
-
     # Load the acqus dictionary of the (mixture) spectrum
-    acqus = sim.load_sim_1D('Sp_1.acqus')
+    M = Spectrum_1D('M.acqus', isexp=False)
+    M.fid = 7 * np.loadtxt('M.fid', dtype='complex128')
+    M.procs['zf'] = 16384
+    M.process()
+    M.plot()
+
+    acqus = M.acqus
+    N = M.r.shape[-1]
+
     # Create list of peaks files
-    spectra_dir = ['Sp_1.fvf', 'Sp_1.fvf']
+    spectra_dir = ['C_1.fvf', 'C_2.fvf']
 
 
     ## Gather all the peaks
@@ -184,8 +197,7 @@ def main():
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
                 p = dict(region_peaks[key]) # Alias, shortcut
                 # Create the fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
-                # TODO cambiare N per matchare le dimensioni dello spettro della miscela
-                peaks.append(fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=None, group=p['group']))
+                peaks.append(fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
                 # Add the peak index as "floating" attribute
                 peaks[-1].idx = key
             # Once all the peaks in a given region have been generated, store them in the list 
@@ -203,6 +215,4 @@ def main():
         # At the end, generate the Spectr object and add it to a list
         components.append(Spectr(acqus, *whole_spectrum))
 
-        
-
-    return acqus, components
+    return M, acqus, components
