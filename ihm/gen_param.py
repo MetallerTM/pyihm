@@ -98,7 +98,7 @@ def L2P(L, Xmin, Xmax):
     return value
 
 
-def singlet2par(item, spect):
+def singlet2par(item, spect, bds):
     """
     Converts a fit.Peak object into a list of lmfit.Parameter objects: the chemical shift (u), the linewidth (s), and intensity (k).
     The keys are of the form 'S#_p?' where # is spect and ? is the index of the peak.
@@ -108,6 +108,8 @@ def singlet2par(item, spect):
         Peak to convert into Parameter. Make sure the .idx attribute is set!
     - spect: int
         Label of the spectrum to which the peak belongs to
+    - bds: dict
+        Contains the parameters' boundaries
     -------
     Returns:
     - p: list
@@ -124,24 +126,25 @@ def singlet2par(item, spect):
     p.append(as_par(
         f'S{spect}_u{idx}',
         dic['u'],
-        0.2,
+        bds['utol'],
         rel = False,
         ))
     #   linewidth
     p.append(as_par(
         f'S{spect}_s{idx}',
         dic['fwhm'],
-        0.01,
+        bds['stol']
         ))
     #   intensity
     p.append(as_par(
         f'S{spect}_k{idx}',
         dic['k'],
-        0.01,
+        bds['ktol'],
+        rel=False
         ))
     return p
 
-def multiplet2par(item, spect, group):
+def multiplet2par(item, spect, group, bds):
     """
     Converts a Multiplet object into a list of lmfit.Parameter objects.
     The keys are of the form 'S#_p?' where # is spect and ? is the index of the peak.
@@ -156,56 +159,69 @@ def multiplet2par(item, spect, group):
         Label of the spectrum to which the peak belongs to
     - group: int
         Label of the multiplet group
+    - bds: dict
+        Contains the parameters' boundaries
     -------
     Returns:
     - p: list
         List of lmfit.Parameter objects
     """
     p = []
-    # chemical shift, total
     for idx, dic in item.par().items():
+        # chemical shift, total
         p.append(as_par(
             f'S{spect}_U{group}',
             dic['U'],
-            0.2,
+            bds['utol'],
             rel = False,
             ))
         # chemical shift, offset from U
         p.append(as_par(
             f'S{spect}_o{idx}',
             dic['u_off'],
-            0.01,
+            bds['utol_sg'],
             rel = False,
             ))
         p.append(as_par(
             f'S{spect}_u{idx}',
             f'S{spect}_U{group} + S{spect}_o{idx}',
-            0.01,
+            0.01,   # Meaningless, just placeholder
             rel = False,
             ))
         # linewidth
         p.append(as_par(
             f'S{spect}_s{idx}',
             dic['fwhm'],
-            0.01,
+            bds['stol'],
             ))
         # intensity
         p.append(as_par(
             f'S{spect}_k{idx}',
             dic['k'],
-            0.01,
+            bds['ktol'],
             rel=False,
             ))
     return p
 
 
-def main(M, components):
-    bds = {
-            'u_big':    0.2,    #ppm
-            'u_small':  0.01,   #ppm
-            's': 0.01,  #%
-            'k': 0.01,  #%
-            }
+def main(M, components, bds):
+    """
+    Create the lmfit.Parameters objects needed for the fitting procedure.
+    -----------
+    Parameters:
+    - M: kz.Spectrum_1D object
+        Mixture spectrum
+    - components: list
+        List of Spectra objects
+    - bds: dict
+        Boundaries for the fitting parameters.
+    -----------
+    Returns:
+    - Lparam: lmfit.Parameters object
+        Normalized parameters for the fit
+    - param: lmfit.Parameters object
+        Actual parameters for the fit
+    """
 
     # Get acqus and the spectra as collection of peaks
     acqus = dict(M.acqus)
@@ -222,15 +238,15 @@ def main(M, components):
             if group == 0:  # Group 0 is a list!
                 for peak in multiplet:
                     # Make the parameters
-                    p = singlet2par(peak, f'{k+1}')
+                    p = singlet2par(peak, f'{k+1}', bds)
                     for par in p:
                         # Add them by unpacking the list
                         param.add(par)
             else:   
                 # make the parameters
-                p = multiplet2par(multiplet, f'{k+1}', group)
+                p = multiplet2par(multiplet, f'{k+1}', group, bds)
+                # Add them by unpacking the list
                 for par in p:
-                    # Add them by unpacking the list
                     param.add(par)
     # Normalize the parameters
     Lparam = l.Parameters() # Normalized parameters

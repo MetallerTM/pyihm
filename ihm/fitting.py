@@ -7,10 +7,11 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 import klassez as kz
+import lmfit as l
 from gen_param import main as gen_param
 from gen_param import L2P
+import plots
 
-import lmfit as l
 
 
 def calc_spectra(Lparam, param, N_spectra, acqus, N):
@@ -138,7 +139,7 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
         spectra.append(peak_list)
     return spectra
 
-def f2min(Lparam, param, N_spectra, acqus, N, exp, I):
+def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -157,11 +158,16 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I):
         Experimental spectrum
     - I: float
         Intensity correction for the calculated spectrum. Used to maintain the relative intensity small.
+    - plims: slice
+        Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
     ----------
     Returns:
     - target: float
         \sum [ (exp - I*calc)^2 ]
     """
+    param['count'].value += 1
+    count = param['count'].value
+    print(f'Iteration step: {count}', end='\r')
     # Compute the trace for each spectrum
     spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
 
@@ -169,7 +175,8 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I):
     total = np.sum(spectra, axis=0)
     # Make the residuals
     residual = exp - I * total
-    target = np.sum(residual**2)
+    t_residual = residual[plims]
+    target = np.sum(t_residual**2)
     return target
 
 def write_output(M, I, K, spectra, lims, filename='fit.report'):
@@ -221,14 +228,52 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
             f.write(f'\n\n')
         
 
-def main(M, N_spectra, Lparam, param):
-    import plots
+def main(M, N_spectra, Lparam, param, lims=None, filename='fit', ext='tiff', dpi=600):
+    """
+    Core of the fitting procedure.
+    It computes the initial guess, save the figure, then starts the fit.
+    After the fit, writes the output file and saves the figures of the result.
+    Summary of saved files:
+    > "<filename>.out": fit report
+    > "<filename>_iguess.<ext>": figure of the initial guess
+    > "<filename>_total.<ext>": figure that contains the experimental spectrum, the total fitting function, and the residuals
+    > "<filename>_wcomp.<ext>": figure that contains the experimental spectrum, the total fitting function, and the components in different colors. The residuals are not shown
+    > "<filename>_rhist.<ext>": histogram of the residual, with a gaussian function drawn on top according to its statistical parameters.
+    ----------
+    Parameters:
+    - M: kz.Spectrum_1D object
+        Mixture spectrum
+    - N_spectra: int
+        Number of spectra to be used as fitting components
+    - Lparam: lmfit.Parameters object
+        Normalized parameters
+    - param: lmfit.Parameters object
+        Actual parameters
+    - lims: tuple or None
+        Delimiters of the fitting region, in ppm. If None, the whole spectrum is used.
+    - filename: str
+        Root of the names for the names of the files that will be saved.
+    - ext: str
+        Format of the figures
+    - dpi: int
+        Resolution of the figures, in dots per inches
+    """
     # Get the parameters for building the spectra
     acqus = dict(M.acqus)
     N = M.r.shape[-1]
 
+    # Add the nucleus to the xlabel
+    X_label = '$\delta\ $'+kz.misc.nuc_format(M.acqus['nuc'])+' /ppm'
+
     # Make a shallow copy of the experimental spectrum
     exp = np.copy(M.r)
+
+    # Convert the limits in ppm into a slice, using the ppm scale as reference
+    if lims is None:
+        plims = slice(0, -1)
+    else:
+        pts = [kz.misc.ppmfind(M.ppm, lim)[0] for lim in lims]
+        plims = slice(min(pts), max(pts))
 
     # Calculate initial spectra
     i_spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
@@ -238,13 +283,20 @@ def main(M, N_spectra, Lparam, param):
     I, _ = kz.fit.fit_int(exp, i_total)
 
     # Plot the initial guess
-    #plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], lims=(10,0))
+    print('Saving figure of the initial guess...')
+    plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], lims=lims, X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+    print('Done.\n')
 
+    param.add('count', value=0, vary=False)
     # Do the fit
-    print('Starting fit...')
-    minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp, I))
-    result = minner.minimize(method='nelder', max_nfev=10000, tol=1e-15)
-    print(result.message, result.nfev)
+    @kz.cron
+    def start_fit():
+        print('Starting fit...')
+        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp, I, plims))
+        result = minner.minimize(method='nelder', max_nfev=10000, tol=1e-15)
+        print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
+        return result
+    result = start_fit()
 
     # Get the optimized parameters
     Lpopt = result.params
@@ -262,24 +314,15 @@ def main(M, N_spectra, Lparam, param):
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
     
+    opt_total = np.sum(opt_spectra, axis=0)
     # Write the output
-    write_output(M, I_abs, K_norm, opt_spectra_obj, (max(M.ppm), min(M.ppm)), filename='fit.report')
+    write_output(M, I_abs, K_norm, opt_spectra_obj, lims, filename=f'{filename}.out')
+    print(f'The results of the fit are saved in {filename}.out.\n')
 
-    plt.figure()
-    plt.plot(exp, label='E')
-    plt.plot(I * np.sum(opt_spectra, axis=0), lw=0.6, label='F', c='r')
-    plt.legend()
-
-    plt.figure()
-    plt.plot(exp, label='E')
-    for k, s in enumerate(opt_spectra):
-        plt.plot(I * s, lw=0.5, label=f'{k+1}')
-    plt.legend()
-
-    plt.figure()
-    plt.plot(exp - I * np.sum(opt_spectra, axis=0), 'b.', label='R')
-    plt.legend()
-    plt.show()
+    # Make the figures
+    print('Saving figures...')
+    plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], lims=lims, X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+    print('Done.\n')
 
 
         
