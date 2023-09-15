@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
-from klassez import *
+import numpy as np
+import klassez as kz
 
 class Multiplet:
     """
@@ -10,7 +11,7 @@ class Multiplet:
     - acqus: dict
         Dictionary of acquisition parameters
     - peaks: dict
-        Dictionary of fit.Peak objects
+        Dictionary of kz.fit.Peak objects
     - U: float
         Mean chemical shift of the multiplet
     - u_off: dict
@@ -23,7 +24,7 @@ class Multiplet:
         Parameters:
         - acqus: dict
             Dictionary of acquisition parameters
-        - peaks: fit.Peak objects
+        - peaks: kz.fit.Peak objects
             Peaks that are part of the multiplet. They must have an attribute 'idx' which serves as label
         """
         # Store the acqus dictionary
@@ -91,7 +92,7 @@ class Spectr:
     - unique_groups: list
         Identifier labels for the multiplets, without duplicates
     - p_collections: dict
-        Dictionary of fit.Peak and Multiplet objects, labelled according to the group they belong to. In particular, self.p_collections[0] is a list of fit.Peak objects, whereas all the remaining entries consist of a single Multiplet object.
+        Dictionary of kz.fit.Peak and Multiplet objects, labelled according to the group they belong to. In particular, self.p_collections[0] is a list of kz.fit.Peak objects, whereas all the remaining entries consist of a single Multiplet object.
     - total: 1darray
         Placeholder for the trace of the spectrum, as sum of all the peaks.
     """
@@ -102,7 +103,7 @@ class Spectr:
         Parameters:
         - acqus: dict
             Dictionary of acquisition parameters
-        - peaks: fit.Peak objects
+        - peaks: kz.fit.Peak objects
             Peaks that are part of the multiplet. They must have an attribute 'idx' which serves as label
         """
         # Store the acqus dictionary
@@ -125,7 +126,7 @@ class Spectr:
             # Get only the peaks of the same group
             keys = [key for key, item in all_groups.items() if item == g]
             if g == 0:  # They are independent, treated as singlets
-                self.p_collections[0] = [fit.Peak(self.acqus, N=self.N, **self.peaks[key].par()) for key in keys]
+                self.p_collections[0] = [kz.fit.Peak(self.acqus, N=self.N, **self.peaks[key].par()) for key in keys]
                 # Add the labels as 'idx' attributes
                 for k, key in enumerate(keys):
                     self.p_collections[0][k].idx = key 
@@ -175,7 +176,7 @@ def main(M, spectra_dir):
     ## Gather all the peaks
     components = [] # Whole spectra
     # Collect the parameters of the peaks
-    spectra_peaks = [fit.read_vf(file) for file in spectra_dir]
+    spectra_peaks = [kz.fit.read_vf(file) for file in spectra_dir]
     for all_peaks in spectra_peaks: # Unpacks the fitting regions
         whole_spectrum = []   # Create empty list of components
         for region_peaks in all_peaks:      # Unpack the peaks in a given region
@@ -185,8 +186,8 @@ def main(M, spectra_dir):
             peaks = []      # Empty list
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
                 p = dict(region_peaks[key]) # Alias, shortcut
-                # Create the fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
-                peaks.append(fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
+                # Create the kz.fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
+                peaks.append(kz.fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
                 # Add the peak index as "floating" attribute
                 peaks[-1].idx = key
             # Once all the peaks in a given region have been generated, store them in the list 
@@ -196,7 +197,7 @@ def main(M, spectra_dir):
         # Get the absolute values
         K_vals = [p.par()['k'] for p in whole_spectrum]
         # Normalize them
-        K_norm, _ = misc.molfrac(K_vals)
+        K_norm, _ = kz.misc.molfrac(K_vals)
         # Put the new ones
         for p, k in zip(whole_spectrum, K_norm):
             p.k = k

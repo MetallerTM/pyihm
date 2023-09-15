@@ -1,6 +1,5 @@
 #! /usr/bin/env python3
 
-# header
 import os
 from datetime import datetime
 import sys
@@ -8,10 +7,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import klassez as kz
 import lmfit as l
-from gen_param import main as gen_param
-from gen_param import L2P
-import plots
 
+from .gen_param import main as gen_param
+from .gen_param import L2P
+from . import plots
 
 
 def calc_spectra(Lparam, param, N_spectra, acqus, N):
