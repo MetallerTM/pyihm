@@ -195,8 +195,44 @@ def plot_output(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$
 
 
 
+def convergence_path(conv_path, filename='conv', ext='tiff', dpi=600):
+    """
+    Makes the figures of the final fitted spectrum and saves them. 
+    Three figures are made: look at the fitting.main function documentation for details.
+    -----------
+    Parameters:
+    - conv_path: str
+        Path to the file of the convergence path
+    - filename: str
+        Filename of the final figure
+    - ext: str
+        Format of the figure
+    - dpi: int
+        Resolution of the figure, in dots per inches
+    """
+    # Read the file and unpack it
+    arr = np.loadtxt(conv_path).T
+    steps, target = arr[0], arr[1]
 
-    
+    # Create the figure
+    fig = plt.figure()
+    fig.set_size_inches(kz.figures.figsize_large)
+    ax = fig.add_subplot(1,1,1)
+    plt.subplots_adjust(left=0.10, top=0.95, bottom=0.10, right=0.95)
 
+    # Make the plot
+    ax.plot(steps, target, '.', markersize=3, c='tab:blue')
 
+    # Adjust xlim as matplotlib wants, but draw the scale only on the actual values
+    xlim = ax.get_xlim()
+    kz.misc.pretty_scale(ax, (min(steps), max(steps)), axis='x')
+    ax.set_xlim(xlim)
+    # Fancy shit
+    kz.misc.pretty_scale(ax, ax.get_ylim(), axis='y')
+    ax.set_xlabel('Iteration step')
+    ax.set_ylabel('Target value')
+    kz.misc.set_fontsizes(ax, 20)
+    # Save the figure
+    plt.savefig(f'{filename}.{ext}', dpi=dpi)
+    plt.close()
     

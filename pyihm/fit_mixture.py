@@ -138,7 +138,7 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
         spectra.append(peak_list)
     return spectra
 
-def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims):
+def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -159,6 +159,8 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims):
         Intensity correction for the calculated spectrum. Used to maintain the relative intensity small.
     - plims: slice
         Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
+    - cnvg_path: str
+        Path for the file where to save the convergence path
     ----------
     Returns:
     - target: float
@@ -166,16 +168,19 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims):
     """
     param['count'].value += 1
     count = param['count'].value
-    print(f'Iteration step: {count}', end='\r')
     # Compute the trace for each spectrum
     spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
 
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra, axis=0)
     # Make the residuals
-    residual = exp - I * total
+    residual = exp/I - total
     t_residual = residual[plims]
-    target = np.sum(t_residual**2)
+    target = np.sum(t_residual**2) / len(t_residual)
+    # Print how the fit is going, both in the file and in standart output
+    with open(cnvg_path, 'a', buffering=1) as cnvg:
+        cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
+    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
     return target
 
 def write_output(M, I, K, spectra, lims, filename='fit.report'):
@@ -227,7 +232,7 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
             f.write(f'\n\n')
         
 
-def main(M, N_spectra, Lparam, param, lims=None, filename='fit', ext='tiff', dpi=600):
+def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -250,6 +255,8 @@ def main(M, N_spectra, Lparam, param, lims=None, filename='fit', ext='tiff', dpi
         Actual parameters
     - lims: tuple or None
         Delimiters of the fitting region, in ppm. If None, the whole spectrum is used.
+    - fit_kws: dict of keyworded arguments
+        Additional parameters for the lmfit.Minimizer.minimize function
     - filename: str
         Root of the names for the names of the files that will be saved.
     - ext: str
@@ -287,12 +294,18 @@ def main(M, N_spectra, Lparam, param, lims=None, filename='fit', ext='tiff', dpi
     print('Done.\n')
 
     param.add('count', value=0, vary=False)
+    # Make a file for saving the convergence path
+    cnvg_path = f'{filename.rsplit(".")[0]}.cnvg'
+    # Clear it and write the header
+    with open(cnvg_path, 'w') as cnvg:
+        cnvg.write('# Step \t Target\n')
+
     # Do the fit
     @kz.cron
     def start_fit():
         print('Starting fit...')
-        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp, I, plims))
-        result = minner.minimize(method='nelder', max_nfev=10000, tol=1e-15)
+        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp, I, plims, cnvg_path))
+        result = minner.minimize(method='nelder', **fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
     result = start_fit()
@@ -317,6 +330,9 @@ def main(M, N_spectra, Lparam, param, lims=None, filename='fit', ext='tiff', dpi
     # Write the output
     write_output(M, I_abs, K_norm, opt_spectra_obj, lims, filename=f'{filename}.out')
     print(f'The results of the fit are saved in {filename}.out.\n')
+    
+    # Make the plot of the convergence path
+    plots.convergence_path(cnvg_path, filename=f'{filename}_cnvg', ext=ext, dpi=dpi)
 
     # Make the figures
     print('Saving figures...')

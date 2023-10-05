@@ -170,6 +170,22 @@ class Spectr:
 
 
 def main(M, spectra_dir):
+    """
+    Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
+    Then, computes a list of Spectr objects with those parameters, and returns it.
+    The relative intensities are referred to the total intensity of the whole spectrum, not to the ones of the fitted regions.
+    Employs kz.fit.read_vf to read the .fvf files and generate the parameters.
+    ----------
+    Parameters:
+    - M: kz.Spectrum_1D object
+        Mixture spectrum. Used to get the spectral parameters for the kz.fit.Peak objects
+    - spectra_dir: list of str
+        Sequence of the locations of the .fvf files to be read
+    ----------
+    Returns:
+    - collections: list of Spectr objects
+        Spectra of pure components, treated as collections of peaks.
+    """
     # Get "structural" parameters from M
     acqus = dict(M.acqus)
     N = M.r.shape[-1]       # Number of points for zero-filling

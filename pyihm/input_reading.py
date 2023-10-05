@@ -95,6 +95,21 @@ def read_input_file(filename):
                 key = key.replace(' ', '')
                 dic['fit_bds'][key] = eval(item)    # This is always a number
 
+        if 'FIT_KWS' in lines[0]:
+            dic['fit_kws'] = {} # Placeholder
+            line = lines[1].split(',')  # Separates the various options
+            for kw in line:    # Loop on the parameters
+                if '=' not in kw:
+                    continue
+                # Separate the key from the actual value
+                key, item = kw.split('=')
+                # Remove the spaces from the key
+                key = key.replace(' ', '')
+                try:
+                    dic['fit_kws'][key] = eval(item)
+                except:
+                    dic['fit_kws'][key] = f'{item}'.replace(' ', '')
+
         # Options for saving the figures: format and resolution
         if 'PLT_OPTS' in lines:
             # Same thing as before
@@ -144,8 +159,16 @@ def read_input(filename):
     dic = read_input_file(filename)
 
     # Check for missing entries
-    if 'mix_spectrum_txt' not in dic.keys():    # This is an optional parameter
+    if 'mix_spectrum_txt' not in dic.keys():    # This is an optional parameter: replacement for spectrum
         dic['mix_spectrum_txt'] = None
+    if 'fit_kws' not in dic.keys():    # This is an optional parameter: parameters for the fit routine
+        dic['fit_kws'] = {}
+    if 'max_nfev' not in dic['fit_kws'].keys(): # Set default max_nfev
+        dic['fit_kws']['max_nfev'] = 10000
+    else:   # If it is set, make sure it is an integer
+        dic['fit_kws']['max_nfev'] = int(dic['fit_kws']['max_nfev'])
+    if 'tol' not in dic['fit_kws'].keys():      # Set default tolerance
+        dic['fit_kws']['tol'] = 1e-5
     # Set the figures' options to .tiff 300 dpi, unless explicitely said
     if 'plt_opt' not in dic.keys():
         dic['plt_opt'] = {}
@@ -172,6 +195,7 @@ def read_input(filename):
             dic['comp_path'],
             dic['fit_lims'],
             dic['fit_bds'],
+            dic['fit_kws'],
             dic['plt_opt'],
             ]
     return ret_vals
