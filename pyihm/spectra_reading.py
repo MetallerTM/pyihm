@@ -169,7 +169,7 @@ class Spectr:
         return total
 
 
-def main(M, spectra_dir):
+def main(M, spectra_dir, lims=None):
     """
     Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
     Then, computes a list of Spectr objects with those parameters, and returns it.
@@ -181,6 +181,8 @@ def main(M, spectra_dir):
         Mixture spectrum. Used to get the spectral parameters for the kz.fit.Peak objects
     - spectra_dir: list of str
         Sequence of the locations of the .fvf files to be read
+    - lims: tuple
+        Borders of the fitting window, in ppm (left, right)
     ----------
     Returns:
     - collections: list of Spectr objects
@@ -202,10 +204,13 @@ def main(M, spectra_dir):
             peaks = []      # Empty list
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
                 p = dict(region_peaks[key]) # Alias, shortcut
-                # Create the kz.fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
-                peaks.append(kz.fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
-                # Add the peak index as "floating" attribute
-                peaks[-1].idx = key
+                if min(lims) <= p['u'] and p['u'] <= max(lims): # Add only the peaks whose chemical shift is inside the fitting window
+                    # Create the kz.fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
+                    peaks.append(kz.fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
+                    # Add the peak index as "floating" attribute
+                    peaks[-1].idx = key
+                else:
+                    continue
             # Once all the peaks in a given region have been generated, store them in the list 
             whole_spectrum.extend(peaks)
 

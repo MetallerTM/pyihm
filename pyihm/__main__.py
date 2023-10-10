@@ -56,7 +56,7 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')
-    components = spectra_reading(M, comp_path)
+    components = spectra_reading(M, comp_path, lims)
     print(f'Done. {len(components)} spectra will be employed in the fit.\n')
 
     ## Create the parameters using lmfit
