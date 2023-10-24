@@ -170,12 +170,13 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
     count = param['count'].value
     # Compute the trace for each spectrum
     spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
+    spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
 
     # Sum the spectra to give the total fitting trace
-    total = np.sum(spectra, axis=0)
+    total = np.sum(spectra_T, axis=0)
     # Make the residuals
     residual = exp/I - total
-    t_residual = residual[plims]
+    t_residual = residual
     target = np.sum(t_residual**2) / len(t_residual)
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
@@ -253,7 +254,7 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
         Normalized parameters
     - param: lmfit.Parameters object
         Actual parameters
-    - lims: tuple or None
+    - lims: list of tuple or None
         Delimiters of the fitting region, in ppm. If None, the whole spectrum is used.
     - fit_kws: dict of keyworded arguments
         Additional parameters for the lmfit.Minimizer.minimize function
@@ -276,21 +277,27 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
 
     # Convert the limits in ppm into a slice, using the ppm scale as reference
     if lims is None:
-        plims = slice(0, -1)
+        plims = [slice(0, -1)]
     else:
-        pts = [kz.misc.ppmfind(M.ppm, lim)[0] for lim in lims]
-        plims = slice(min(pts), max(pts))
+        pts = [tuple([kz.misc.ppmfind(M.ppm, lim)[0] for lim in X]) for X in lims]
+        plims = [slice(min(W), max(W)) for W in pts]
+
+    # Trim the spectrum according to the lims
+    exp_T = np.concatenate([exp[w] for w in plims])
 
     # Calculate initial spectra
     i_spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
     # Initial guess of the total calculated spectrum
     i_total = np.sum([s for s in i_spectra], axis=0)
+    i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    I, _ = kz.fit.fit_int(exp, i_total)
+    I, _ = kz.fit.fit_int(exp_T, i_total_T)             
 
     # Plot the initial guess
     print('Saving figure of the initial guess...')
-    plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], lims=lims, X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+    plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], 
+            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+            X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
 
     param.add('count', value=0, vary=False)
@@ -304,8 +311,8 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     @kz.cron
     def start_fit():
         print('Starting fit...')
-        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp, I, plims, cnvg_path))
-        result = minner.minimize(method='nelder', **fit_kws)
+        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
+        result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
     result = start_fit()
@@ -328,7 +335,9 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     
     opt_total = np.sum(opt_spectra, axis=0)
     # Write the output
-    write_output(M, I_abs, K_norm, opt_spectra_obj, lims, filename=f'{filename}.out')
+    write_output(M, I_abs, K_norm, opt_spectra_obj, 
+            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+            filename=f'{filename}.out')
     print(f'The results of the fit are saved in {filename}.out.\n')
     
     # Make the plot of the convergence path
@@ -336,7 +345,10 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
 
     # Make the figures
     print('Saving figures...')
-    plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], lims=lims, X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+    plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], 
+            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+            plims=plims,
+            X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
 
 

@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import klassez as kz
 
-from .input_reading import read_input
+from .input_reading import read_input, select_regions
 from .spectra_reading import main as spectra_reading
 from .gen_param import main as gen_param
 from .fit_mixture import main as do_fit
@@ -31,8 +31,6 @@ for n_inp, inp_file in enumerate(inp_files):
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(sys.argv)-1} input file.\n')
     filename, mix_path, mix_kws, mix_txtf, comp_path, lims, bds, fit_kws, plt_opt = read_input(inp_file)
 
-    # Sort the ppm limits so they appear always in the correct order
-    lims = max(lims), min(lims)
 
     ## Load the mixture spectrum
     print('Reading the mixture spectrum...')
@@ -53,6 +51,13 @@ for n_inp, inp_file in enumerate(inp_files):
     M.freq = kz.processing.make_scale(N, acqus['dw'])
     M.ppm = kz.misc.freq2ppm(M.freq, acqus['SFO1'], acqus['o1p'])
     print(f'{os.path.join(M.datadir, M.filename)} successfully loaded.\n')
+
+    # Sort the ppm limits so they appear always in the correct order
+    if lims is None:    # Select them interactively
+        lims = select_regions(M.ppm, M.r)
+        text_to_append = '\n'.join([f'{max(X):-7.3f}, {min(X):-7.3f}' for X in lims])
+        print('Append the following text to your input file:\n\nFIT_LIMITS\n'+text_to_append+'\n')
+    lims = [(max(X), min(X)) for X in lims]
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')

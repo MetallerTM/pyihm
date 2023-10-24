@@ -65,7 +65,7 @@ def plot_iguess(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$
     plt.savefig(f'{filename}_iguess.{ext}', dpi=dpi)
     plt.close()
 
-def plot_output(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600):
+def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600):
     """
     Makes the figures of the final fitted spectrum and saves them. 
     Three figures are made: look at the fitting.main function documentation for details.
@@ -106,14 +106,16 @@ def plot_output(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$
     residuals = exp - total
     res_offset = 0.05 * (max(total)-min(total))
     # Plot it as a set of dots
-    r_plot = kz.figures.ax1D(ax, ppm_scale, residuals-res_offset, c='tab:green', lw=0.7, label='Residuals')
-    r_plot.set(
-            ls='',
-            marker='.',
-            markersize=0.6,
-            markeredgewidth=0.6,
-            fillstyle='full',
-            )
+    if plims:
+        for k, X in enumerate(plims):
+            r_plot = kz.figures.ax1D(ax, ppm_scale[X], residuals[X]-res_offset, c='tab:green', lw=0.7, label=k*'_'+'Residuals')
+            r_plot.set(
+                    ls='',
+                    marker='.',
+                    markersize=0.6,
+                    markeredgewidth=0.6,
+                    fillstyle='full',
+                    )
     
     # Make the x-scale according to lims
     if lims is None:
@@ -184,7 +186,11 @@ def plot_output(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$
     nbins = int(np.floor(residuals.shape[-1] / (10**np.floor(np.log10(residuals.shape[-1])))) * 10**(np.floor(np.log10(residuals.shape[-1])) - 1))
 
     # Make the histogram
-    kz.fit.ax_histogram(ax, residuals, nbins=nbins, density=True, f_lims=None, xlabel='Residuals', x_symm=True, barcolor='tab:green', fontsize=20)
+    if plims:
+        R_trim = np.concatenate([residuals[X] for X in plims])
+        kz.fit.ax_histogram(ax, R_trim, nbins=nbins, density=True, f_lims=None, xlabel='Residuals', x_symm=True, barcolor='tab:green', fontsize=20)
+    else:
+        kz.fit.ax_histogram(ax, residuals, nbins=nbins, density=True, f_lims=None, xlabel='Residuals', x_symm=True, barcolor='tab:green', fontsize=20)
 
     # Adjust the fontsizes
     kz.misc.set_fontsizes(ax, 20)

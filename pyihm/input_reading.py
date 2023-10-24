@@ -3,7 +3,7 @@
 import sys
 import os
 import numpy as np
-
+from .select_regions import select_regions
 
 def read_input_file(filename):
     """
@@ -26,7 +26,6 @@ def read_input_file(filename):
             'BASE_FILENAME',
             'MIX_PATH',
             'COMP_PATH',
-            'FIT_LIMITS',
             'FIT_BDS',
             ]
     exit_status = 0         # Missing keywords will make this go to 1
@@ -80,7 +79,10 @@ def read_input_file(filename):
 
         # Delimiters of the fitting region, in ppm
         if 'FIT_LIMITS' in lines[0]:
-            dic['fit_lims'] = eval(lines[1])
+            lines.pop(0)    # Remove the header line
+            dic['fit_lims'] = []   # Placeholder
+            for line in lines:  # One region per line
+                dic['fit_lims'].append(tuple(eval(line)))
 
         # Boundaries for the parameters of the fit
         if 'FIT_BDS' in lines[0]:
@@ -126,6 +128,7 @@ def read_input_file(filename):
     f.close()
     return dic
 
+
 def read_input(filename):
     """
     Reads the input file to get all the information to perform the fit.
@@ -161,8 +164,13 @@ def read_input(filename):
     # Check for missing entries
     if 'mix_spectrum_txt' not in dic.keys():    # This is an optional parameter: replacement for spectrum
         dic['mix_spectrum_txt'] = None
+    if 'fit_lims' not in dic.keys():
+        print('Fit limits not found in the input file.')
+        dic['fit_lims'] = None
     if 'fit_kws' not in dic.keys():    # This is an optional parameter: parameters for the fit routine
         dic['fit_kws'] = {}
+    if 'method' not in dic['fit_kws'].keys():  # Algorithm to be used for the fit
+        dic['fit_kws']['method'] = 'nelder'
     if 'max_nfev' not in dic['fit_kws'].keys(): # Set default max_nfev
         dic['fit_kws']['max_nfev'] = 10000
     else:   # If it is set, make sure it is an integer

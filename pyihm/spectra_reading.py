@@ -188,6 +188,17 @@ def main(M, spectra_dir, lims=None):
     - collections: list of Spectr objects
         Spectra of pure components, treated as collections of peaks.
     """
+    def is_in(x, Bs):
+        """ Check if the chemical shift is inside one of the fitting intervals """
+        flag = False    # Default
+        for B in Bs:    # Loop on the intervals
+            if min(B) <= x and x <= max(B): # Check if it is inside
+                flag = True     # Match as found!
+                break           # Exit the loop
+            else:
+                pass
+        return flag
+
     # Get "structural" parameters from M
     acqus = dict(M.acqus)
     N = M.r.shape[-1]       # Number of points for zero-filling
@@ -204,7 +215,7 @@ def main(M, spectra_dir, lims=None):
             peaks = []      # Empty list
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
                 p = dict(region_peaks[key]) # Alias, shortcut
-                if min(lims) <= p['u'] and p['u'] <= max(lims): # Add only the peaks whose chemical shift is inside the fitting window
+                if is_in(p['u'], lims): # Add only the peaks whose chemical shift is inside the fitting window
                     # Create the kz.fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
                     peaks.append(kz.fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
                     # Add the peak index as "floating" attribute
