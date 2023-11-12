@@ -3,7 +3,7 @@
 import sys
 import os
 import numpy as np
-from .select_regions import select_regions
+from .GUIs import select_regions
 
 def read_input_file(filename):
     """

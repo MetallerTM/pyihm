@@ -133,13 +133,21 @@ def singlet2par(item, spect, bds):
     p.append(as_par(
         f'S{spect}_s{idx}',
         dic['fwhm'],
-        bds['stol']
+        bds['stol'],
+        rel=False
         ))
     #   intensity
     p.append(as_par(
         f'S{spect}_k{idx}',
         dic['k'],
         bds['ktol'],
+        rel=False
+        ))
+    #   x_g
+    p.append(as_par(
+        f'S{spect}_x_g{idx}',
+        dic['x_g'],
+        (0, 1),
         rel=False
         ))
     return p
@@ -201,6 +209,13 @@ def multiplet2par(item, spect, group, bds):
             bds['ktol'],
             rel=False,
             ))
+        #   x_g
+        p.append(as_par(
+            f'S{spect}_x_g{idx}',
+            dic['x_g'],
+            (0, 1),
+            rel=False
+            ))
     return p
 
 
@@ -232,7 +247,7 @@ def main(M, components, bds):
     param = l.Parameters()
     for k, S in enumerate(components):  # Loop on the spectra
         # Intensity
-        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 5)))
+        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 10)))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!
