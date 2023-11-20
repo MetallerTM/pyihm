@@ -130,7 +130,7 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
             u=dic[f'u{i}'], 
             fwhm=dic[f's{i}'],
             k=dic[f'k{i}'],
-            x_g=0, 
+            x_g=dic[f'x_g{i}'], 
             phi=0,
             N=N,
             ) for i in peaks_idx[n]]
@@ -310,7 +310,7 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     # Do the fit
     @kz.cron
     def start_fit():
-        print('Starting fit...')
+        print(f'This fit has {len(Lparam)} parameters.\nStarting fit...')
         minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
