@@ -66,7 +66,7 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create the parameters using lmfit
     print('Creating parameters for the fit...')
-    Lparam, param = gen_param(M, components, bds)
+    Lparam, param = gen_param(M, components, bds, lims)
     print('Done.\n')
 
     # Do the fit and save figures and output file

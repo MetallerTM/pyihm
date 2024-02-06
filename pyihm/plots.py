@@ -110,7 +110,7 @@ def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
         for k, X in enumerate(plims):
             r_plot = kz.figures.ax1D(ax, ppm_scale[X], residuals[X]-res_offset, c='tab:green', lw=0.7, label=k*'_'+'Residuals')
             r_plot.set(
-                    ls='',
+                    ls='-',
                     marker='.',
                     markersize=0.6,
                     markeredgewidth=0.6,
@@ -227,7 +227,7 @@ def convergence_path(conv_path, filename='conv', ext='tiff', dpi=600):
     plt.subplots_adjust(left=0.10, top=0.95, bottom=0.10, right=0.95)
 
     # Make the plot
-    ax.plot(steps, target, '.', markersize=3, c='tab:blue')
+    ax.plot(steps, np.log10(target), '.', markersize=3, c='tab:blue')
 
     # Adjust xlim as matplotlib wants, but draw the scale only on the actual values
     xlim = ax.get_xlim()
@@ -236,7 +236,7 @@ def convergence_path(conv_path, filename='conv', ext='tiff', dpi=600):
     # Fancy shit
     kz.misc.pretty_scale(ax, ax.get_ylim(), axis='y')
     ax.set_xlabel('Iteration step')
-    ax.set_ylabel('Target value')
+    ax.set_ylabel('$\log$ target value')
     kz.misc.set_fontsizes(ax, 20)
     # Save the figure
     plt.savefig(f'{filename}.{ext}', dpi=dpi)

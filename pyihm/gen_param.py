@@ -84,9 +84,9 @@ def L2P(L, Xmin, Xmax):
     - L: float
         Normalized parameter value
     - Xmin: float
-        Lower bound of the "original" patameter
+        Lower bound of the "original" parameter
     - Xmax: float
-        Upper bound of the "original" patameter
+        Upper bound of the "original" parameter
     ------
     Returns:
     - name: str
@@ -219,7 +219,7 @@ def multiplet2par(item, spect, group, bds):
     return p
 
 
-def main(M, components, bds):
+def main(M, components, bds, lims):
     """
     Create the lmfit.Parameters objects needed for the fitting procedure.
     -----------
@@ -247,7 +247,7 @@ def main(M, components, bds):
     param = l.Parameters()
     for k, S in enumerate(components):  # Loop on the spectra
         # Intensity
-        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 10)))
+        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 2)))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!
@@ -263,6 +263,21 @@ def main(M, components, bds):
                 # Add them by unpacking the list
                 for par in p:
                     param.add(par)
+
+    # Correct the boundaries of the chemical shifts to make them stay in the fitting windows
+    for p in param:
+        # Search the chemical shifts
+        if 'u' in p or 'U' in p:
+            # Look for the region where the u falls in
+            for lim in lims:
+                if min(lim) <= param[p].value and param[p].value <= max(lim):
+                    limits = lim
+                    break
+            # Update the limits:
+            # the left border is the right-most value between the actual left border and the left border of the fitting window
+            # the right border is the left-most value between the actual right border and the right border of the fitting window
+            param[p].set(min=max(min(lim), param[p].min), max=min(max(lim), param[p].max) ) 
+
     # Normalize the parameters
     Lparam = l.Parameters() # Normalized parameters
     for name in param:

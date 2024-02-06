@@ -68,7 +68,7 @@ def calc_spectra(Lparam, param, N_spectra, acqus, N):
             u=dic[f'u{i}'], 
             fwhm=dic[f's{i}'],
             k=dic[f'k{i}'],
-            x_g=0, 
+            x_g=dic[f'x_g{i}'], 
             phi=0,
             N=N,
             ) for i in peaks_idx[n]]
@@ -102,7 +102,7 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
             continue
         newkey = key.replace('L', '', 1)
         value = L2P(Lparam[key].value, param[newkey].min, param[newkey].max)
-        param[newkey].set(value)
+        param[newkey].set(value=value)
 
     # Separate the parameters according to the spectra
     d_param = param.valuesdict()    # Convert to dictionary
@@ -138,7 +138,48 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
         spectra.append(peak_list)
     return spectra
 
-def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
+def TF_normal(exp, I, total):
+    """
+    exp - calc
+    """
+    F_exp = np.copy(exp/I)
+    F_calc = np.copy(total)
+    t_residual = F_exp - F_calc
+    return [F_exp], [F_calc], t_residual
+
+def TF_derivative(exp, I, total):
+    """
+    d/dx exp - d/dx calc
+    """
+    F_exp = np.gradient(exp/I)
+    F_calc = np.gradient(calc)
+    t_residual = F_exp - F_calc
+    return [F_exp], [F_calc], t_residual
+
+def TF_norm_der(exp, I, total):
+    
+    grad_exp = np.gradient(exp/I)
+    grad_calc = np.gradient(total)
+    F_exp = np.stack([exp/I, grad_exp])
+    F_calc = np.stack([total, grad_calc])
+    residual = F_exp - F_calc
+    t_residual = np.concatenate([r for r in residual], axis=0)
+    return F_exp, F_calc, t_residual
+
+def TF_cumsum(exp, I, total):
+
+    F_exp = kz.processing.integral(exp/I) / I
+    F_calc = kz.processing.integral(total) / I
+    t_residual = F_exp - F_calc
+    return [F_exp], [F_calc], t_residual
+
+
+
+
+
+
+
+def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -174,15 +215,46 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
 
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
-    # Make the residuals
-    residual = exp/I - total
-    t_residual = residual
+
+    F_exp, F_total, t_residual = f_target(exp, I, total)
+
+    F_exp = np.concatenate(F_exp, axis=0)
+    F_total = np.concatenate(F_total, axis=0)
+
     target = np.sum(t_residual**2) / len(t_residual)
+
+
+
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
-    return target
+
+    with open(cnvg_path+'QQQQ', 'a', buffering=1) as Q:
+        u_dic = {key: value for key, value in param.valuesdict().items() if 'I' in key}
+        text = '; '.join([f'{key}: {value:.4e}' for key, value in u_dic.items()])
+        Q.write(text+'\n\n')
+    
+    ########
+    if (count-1) % 20 == 0:
+        fig = plt.figure()
+        fig.set_size_inches(kz.figures.figsize_large)
+        ax = fig.add_subplot(4,1,(1,3))
+        axr = fig.add_subplot(4,1,4)
+        ax.plot(F_exp, c='k')
+        ax.plot(F_total, c='tab:blue', lw=0.9)
+        ax.plot(t_residual, c='tab:green', lw=0.5, ls=':')
+        axr.axhline(0, c='k')
+        axr.plot(t_residual, c='tab:green')
+        fig.tight_layout()
+        plt.savefig(f'ongoing.png', dpi=200)
+        plt.savefig(f'ongoing/{count}.png', dpi=200)
+        plt.close()
+
+    if method == 'leastsq':
+        return t_residual
+    else:
+        return target
 
 def write_output(M, I, K, spectra, lims, filename='fit.report'):
     """
@@ -291,7 +363,8 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    I, _ = kz.fit.fit_int(exp_T, i_total_T)             
+    #I, _ = kz.fit.fit_int(exp_T, i_total_T)             
+    I = kz.processing.integrate(exp_T, x=M.freq) / (M.acqus['SW']/2)
 
     # Plot the initial guess
     print('Saving figure of the initial guess...')
@@ -300,9 +373,22 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
             X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
 
+    if 0:
+        for p in Lparam:
+            if 'I' not in p:
+                Lparam[p].set(vary=False)
+        Lparam['LS1_I'].set(value=0.0580)
+        Lparam['LS2_I'].set(value=0.0223)
+        Lparam['LS3_I'].set(value=0.0197)
+
+
     param.add('count', value=0, vary=False)
     # Make a file for saving the convergence path
     cnvg_path = f'{filename.rsplit(".")[0]}.cnvg'
+
+    sys.stdout = open('param', 'w')
+    param.pretty_print()
+    sys.stdout = sys.__stdout__
     # Clear it and write the header
     with open(cnvg_path, 'w') as cnvg:
         cnvg.write('# Step \t Target\n')
@@ -310,8 +396,14 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     # Do the fit
     @kz.cron
     def start_fit():
+        if fit_kws['method'] == 'leastsq':
+            tol = fit_kws.pop('tol')
+            fit_kws['xtol'] = tol
+            fit_kws['ftol'] = tol
         print(f'This fit has {len(Lparam)} parameters.\nStarting fit...')
-        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
+        #TF = TF_norm_der
+        TF = TF_cumsum
+        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp_T, I, plims, cnvg_path, TF, fit_kws['method']))
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
@@ -329,7 +421,10 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     #   Get the actual intensities
     K = [f for key, f in param.valuesdict().items() if 'I' in key]
     #   Normalize them
+    print(K)
     K_norm, I_corr = kz.misc.molfrac(K)
+    print(K_norm)
+    print(I_corr)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
     
