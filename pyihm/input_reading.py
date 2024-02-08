@@ -177,7 +177,7 @@ def read_input(filename):
     if 'fit_kws' not in dic.keys():    # This is an optional parameter: parameters for the fit routine
         dic['fit_kws'] = {}
     if 'method' not in dic['fit_kws'].keys():  # Algorithm to be used for the fit
-        dic['fit_kws']['method'] = 'nelder'
+        dic['fit_kws']['method'] = 'leastsq'
     if 'max_nfev' not in dic['fit_kws'].keys(): # Set default max_nfev
         dic['fit_kws']['max_nfev'] = 10000
     else:   # If it is set, make sure it is an integer

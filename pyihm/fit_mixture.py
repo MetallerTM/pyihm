@@ -174,26 +174,10 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims):
     target = np.sum(t_residual**2) / len(t_residual)
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
-    # FIGURE
-    if (count-1) % 20 == 0:
-        fig = plt.figure()
-        fig.set_size_inches(kz.figures.figsize_large)
-        ax = fig.add_subplot(4,1,(1,3))
-        axr = fig.add_subplot(4,1,4)
-        ax.plot(F_exp, c='k')
-        ax.plot(F_calc, c='tab:blue', lw=0.9)
-        ax.plot(t_residual, c='tab:green', lw=0.5, ls=':')
-        axr.axhline(0, c='k')
-        axr.plot(t_residual, c='tab:green')
-        fig.tight_layout()
-        plt.savefig(f'ongoing_align.png', dpi=200)
-        plt.savefig(f'ongoing_align/{count}.png', dpi=200)
-        plt.close()
-
     return t_residual
 
 
-def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method):
+def f2min_lm(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -214,8 +198,52 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method):
         Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
     - cnvg_path: str
         Path for the file where to save the convergence path
-    - method: str
-        Minimization method used
+    ----------
+    Returns:
+    - target: 1darray
+        Array of the residuals
+    """
+    param['count'].value += 1
+    count = param['count'].value
+    # Compute the trace for each spectrum
+    spectra = calc_spectra(param, N_spectra, acqus, N)
+    spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
+
+    # Sum the spectra to give the total fitting trace
+    total = np.sum(spectra_T, axis=0)
+
+    t_residual = exp / I - total
+
+    target = np.sum(t_residual**2) / len(t_residual)
+
+    # Print how the fit is going, both in the file and in standart output
+    with open(cnvg_path, 'a', buffering=1) as cnvg:
+        cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
+    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
+
+    return t_residual
+
+def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
+    """
+    Function to compute the quantity to be minimized by the fit.
+    ----------
+    Parameters:
+    - param: lmfit.Parameters object
+        actual parameters
+    - N_spectra: int
+        Number of spectra to be used as components
+    - acqus: dict
+        Dictionary of acquisition parameters
+    - N: int
+        Number of points for zero-filling, i.e. final dimension of the arrays
+    - exp: 1darray
+        Experimental spectrum
+    - I: float
+        Intensity correction for the calculated spectrum. Used to maintain the relative intensity small.
+    - plims: slice
+        Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
+    - cnvg_path: str
+        Path for the file where to save the convergence path
     ----------
     Returns:
     - target: float or 1darray
@@ -239,26 +267,8 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method):
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
-    # FIGURE
-    if (count-1) % 20 == 0:
-        fig = plt.figure()
-        fig.set_size_inches(kz.figures.figsize_large)
-        ax = fig.add_subplot(4,1,(1,3))
-        axr = fig.add_subplot(4,1,4)
-        ax.plot(exp/I, c='k')
-        ax.plot(total, c='tab:blue', lw=0.9)
-        ax.plot(t_residual, c='tab:green', lw=0.5, ls=':')
-        axr.axhline(0, c='k')
-        axr.plot(t_residual, c='tab:green')
-        fig.tight_layout()
-        plt.savefig(f'ongoing.png', dpi=200)
-        plt.savefig(f'ongoing/{count}.png', dpi=200)
-        plt.close()
+    return target
 
-    if method == 'leastsq':
-        return t_residual
-    else:
-        return target
 
 def write_output(M, I, K, spectra, lims, filename='fit.report'):
     """
@@ -454,8 +464,11 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='ti
             tol = fit_kws.pop('tol')
             fit_kws['xtol'] = tol
             fit_kws['ftol'] = tol
+            fit_kws['gtol'] = tol
+            minner = l.Minimizer(f2min_lm, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
+        else:
+            minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
         print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
-        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, fit_kws['method']))
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
