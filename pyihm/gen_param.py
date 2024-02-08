@@ -52,52 +52,6 @@ def as_par(name, value, lims=0, rel=True):
                 )
     return p
 
-def P2L(P):
-    """
-    Normalize a lmfit.Parameter object according to its boundaries. Works only if expr is not set! In this case, in fact, it returns None.
-    The boundaries of the new parameter are set to be (0,1), where 0 corresponds to P.min and 1 to P.max.
-    ------
-    Parameters:
-    - P: lmfit.Parameter object
-        Not normalized parameter
-    ------
-    Returns:
-    - L: lmfit.Parameter object
-        Normalized parameter. If P.expr is set, this is None.
-    """
-    if P.expr is None or P.expr == '': 
-        L = l.Parameter(
-                name = f'L{P.name}',
-                value = (P.value - P.min) / (P.max - P.min),
-                min = 0,
-                max = 1,
-                )
-        return L
-    else:   # Do nothing and return None
-        return
-
-def L2P(L, Xmin, Xmax):
-    """
-    Convert a normalized parameter into its absolute counterpart.
-    ------
-    Parameters:
-    - L: float
-        Normalized parameter value
-    - Xmin: float
-        Lower bound of the "original" parameter
-    - Xmax: float
-        Upper bound of the "original" parameter
-    ------
-    Returns:
-    - name: str
-        Label of the parameter
-    - value: float
-        Correspondant value
-    """
-    value = L * (Xmax - Xmin) + Xmin
-    return value
-
-
 def singlet2par(item, spect, bds):
     """
     Converts a fit.Peak object into a list of lmfit.Parameter objects: the chemical shift (u), the linewidth (s), and intensity (k).
@@ -278,11 +232,4 @@ def main(M, components, bds, lims):
             # the right border is the left-most value between the actual right border and the right border of the fitting window
             param[p].set(min=max(min(lim), param[p].min), max=min(max(lim), param[p].max) ) 
 
-    # Normalize the parameters
-    Lparam = l.Parameters() # Normalized parameters
-    for name in param:
-        Q = P2L(param[name])    # Make the conversion
-        if Q is not None:   # Add only the ones which has not an expression set, to avoid errors
-            Lparam.add(Q)
-
-    return Lparam, param
+    return param

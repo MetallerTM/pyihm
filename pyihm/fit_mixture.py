@@ -9,7 +9,6 @@ import klassez as kz
 import lmfit as l
 
 from .gen_param import main as gen_param
-from .gen_param import L2P
 from . import plots
 
 
@@ -19,8 +18,6 @@ def calc_spectra(param, N_spectra, acqus, N):
     This function is called at each iteration of the fit.
     ---------
     Parameters:
-    - Lparam: lmfit.Parameters object
-        Normalized parameters
     - param: lmfit.Parameters object
         Actual parameters
     - N_spectra: int
@@ -73,8 +70,6 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
     Computes the spectra to be used as components for the fitting procedure, in form of lists of kz.fit.Peak objects. 
     ---------
     Parameters:
-    - Lparam: lmfit.Parameters object
-        Normalized parameters
     - param: lmfit.Parameters object
         Actual parameters
     - N_spectra: int
@@ -122,54 +117,87 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
         spectra.append(peak_list)
     return spectra
 
-def TF_normal(exp, I, total):
-    """
-    exp - calc
-    """
-    F_exp = np.copy(exp/I)
-    F_calc = np.copy(total)
-    t_residual = F_exp - F_calc
-    return [F_exp], [F_calc], t_residual
-
-def TF_derivative(exp, I, total):
-    """
-    d/dx exp - d/dx calc
-    """
-    F_exp = np.gradient(exp/I)
-    F_calc = np.gradient(calc)
-    t_residual = F_exp - F_calc
-    return [F_exp], [F_calc], t_residual
-
-def TF_norm_der(exp, I, total):
-    
-    grad_exp = np.gradient(exp/I)
-    grad_calc = np.gradient(total)
-    F_exp = np.stack([exp/I, grad_exp])
-    F_calc = np.stack([total, grad_calc])
-    residual = F_exp - F_calc
-    t_residual = np.concatenate([r for r in residual], axis=0)
-    return F_exp, F_calc, t_residual
-
-def TF_cumsum(exp, I, total):
-
-    F_exp = kz.processing.integral(exp/I) / I
-    F_calc = kz.processing.integral(total) / I
-    t_residual = F_exp - F_calc
-    return [F_exp], [F_calc], t_residual
 
 
-
-
-
-
-
-def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method):
+def f2min_align(param, N_spectra, acqus, N, exp, plims):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
     Parameters:
-    - Lparam: lmfit.Parameters object
-        Normalized parameters
+    - param: lmfit.Parameters object
+        actual parameters
+    - N_spectra: int
+        Number of spectra to be used as components
+    - acqus: dict
+        Dictionary of acquisition parameters
+    - N: int
+        Number of points for zero-filling, i.e. final dimension of the arrays
+    - exp: 1darray
+        Experimental spectrum
+    - plims: slice
+        Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
+    ----------
+    Returns:
+    - target: float
+        \sum [ (exp - I*calc)^2 ]
+    """
+    param['count'].value += 1
+    count = param['count'].value
+    # Compute the trace for each spectrum
+    spectra = calc_spectra(param, N_spectra, acqus, N)
+    # Sum the signals to give the total fitting trace
+    total = np.sum([s for s in spectra], axis=0)
+    # Cut the total traces according to the fitting windows
+    total_T = [total[w] for w in plims]
+
+    # Make the integrals for each fitting window
+    F_total = [kz.processing.integral(s) for s in total_T]
+
+    R = []      # Placeholder for residuals
+    F_calc = [] # Placeholder for total fitting trace
+
+    for E, C in zip(exp, F_total):      # Loop on the fitting windows
+        # Calculate the intensity and offset factors
+        intensity, offset = kz.fit.fit_int(E, C)    
+        # Correct the calculated spectrum for these values
+        F_calc.append(intensity * C + offset)
+        # Compute the residuals
+        tmp_res = E - (intensity * C + offset)
+        R.append(tmp_res)
+    # Make experimental and calculated spectrum a 1darray by concatenating the windows
+    F_exp = np.concatenate(exp)
+    F_calc = np.concatenate(F_calc)
+    # Make the residuals a 1darray by concatenating the windows
+    t_residual = np.concatenate(R)
+
+    # Compute the target value and print it
+    target = np.sum(t_residual**2) / len(t_residual)
+    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
+
+    # FIGURE
+    if (count-1) % 20 == 0:
+        fig = plt.figure()
+        fig.set_size_inches(kz.figures.figsize_large)
+        ax = fig.add_subplot(4,1,(1,3))
+        axr = fig.add_subplot(4,1,4)
+        ax.plot(F_exp, c='k')
+        ax.plot(F_calc, c='tab:blue', lw=0.9)
+        ax.plot(t_residual, c='tab:green', lw=0.5, ls=':')
+        axr.axhline(0, c='k')
+        axr.plot(t_residual, c='tab:green')
+        fig.tight_layout()
+        plt.savefig(f'ongoing_align.png', dpi=200)
+        plt.savefig(f'ongoing_align/{count}.png', dpi=200)
+        plt.close()
+
+    return t_residual
+
+
+def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method):
+    """
+    Function to compute the quantity to be minimized by the fit.
+    ----------
+    Parameters:
     - param: lmfit.Parameters object
         actual parameters
     - N_spectra: int
@@ -186,10 +214,12 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method
         Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
     - cnvg_path: str
         Path for the file where to save the convergence path
+    - method: str
+        Minimization method used
     ----------
     Returns:
-    - target: float
-        \sum [ (exp - I*calc)^2 ]
+    - target: float or 1darray
+        For Levenberg-Marquardt (method='leastsq'), array of the residuals, else \sum [ (exp - I*calc)^2 ]
     """
     param['count'].value += 1
     count = param['count'].value
@@ -200,33 +230,23 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
 
-    F_exp, F_total, t_residual = f_target(exp, I, total)
-
-    F_exp = np.concatenate(F_exp, axis=0)
-    F_total = np.concatenate(F_total, axis=0)
+    t_residual = exp / I - total
 
     target = np.sum(t_residual**2) / len(t_residual)
-
-
 
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
-    with open(cnvg_path+'QQQQ', 'a', buffering=1) as Q:
-        u_dic = {key: value for key, value in param.valuesdict().items() if 'I' in key}
-        text = '; '.join([f'{key}: {value:.4e}' for key, value in u_dic.items()])
-        Q.write(text+'\n\n')
-    
-    ########
+    # FIGURE
     if (count-1) % 20 == 0:
         fig = plt.figure()
         fig.set_size_inches(kz.figures.figsize_large)
         ax = fig.add_subplot(4,1,(1,3))
         axr = fig.add_subplot(4,1,4)
-        ax.plot(F_exp, c='k')
-        ax.plot(F_total, c='tab:blue', lw=0.9)
+        ax.plot(exp/I, c='k')
+        ax.plot(total, c='tab:blue', lw=0.9)
         ax.plot(t_residual, c='tab:green', lw=0.5, ls=':')
         axr.axhline(0, c='k')
         axr.plot(t_residual, c='tab:green')
@@ -288,8 +308,67 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
         with open(filename, 'a', buffering=1) as f:
             f.write(f'\n\n')
         
+def pre_alignment(exp, acqus, N_spectra, N, plims, param):
+    """
+    Makes a fit with all the parameters blocked, except for the chemical shifts, on the target function of the integral.
+    Used to improve the initial guess in case of misplacements of the signals.
+    ----------
+    - exp: 1darray
+        Experimental spectrum
+    - acqus: dict
+        Dictionary of acquisition parameters
+    - N_spectra: int
+        Number of spectra to be used as components
+    - N: int
+        Number of points for zero-filling, i.e. final dimension of the arrays
+    - plims: list of slice
+        Delimiters for the fitting region. The residuals are computed only in these regions. They must be given as point indices
+    - param: lmfit.Parameters object
+        actual parameters
+    ----------
+    Returns:
+    - popt: lmfit.Parameters object
+        Parameters with optimal chemical shifts
+    """
 
-def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
+    # Cut the experimental spectrum according to the fitting windows
+    exp_T = [exp[w] for w in plims]
+    # Compute the integrals of the experimental spectrum for each window
+    Fexp_T = [kz.processing.integral(f) for f in exp_T]
+    # Normalize it to make smaller numbers
+    Fexp_T = [s / np.max(np.concatenate(Fexp_T)) for s in Fexp_T]
+
+    # Add the fit counter
+    param.add('count', value=0, vary=False)
+    # Store the 'vary' status of all the parameters
+    vary_dict = {}
+    for p in param: # Loop on the parameters name
+        vary_dict[p] = param[p].vary    # Store
+        # Block all parameters that are not chemical shifts
+        if 'u' in p or 'U' in p:
+            pass
+        else:
+            param[p].set(vary=False)
+
+    # Make the fit
+    @kz.cron
+    def start_fit_align():
+        print('Starting alignment fit...')
+        minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims))
+        result = minner.minimize(method='leastsq', xtol=1e-8, ftol=1e-8, gtol=1e-8)
+        print(f'Alignment {result.message}\nNumber of function evaluations: {result.nfev}.')
+        return result
+    result = start_fit_align()
+    popt = result.params
+
+    # Reset the "vary" status of the parameters to the original one
+    for p in param:
+        popt[p].set(vary=vary_dict[p])
+
+    return popt
+
+
+def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -308,8 +387,6 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
         Number of spectra to be used as fitting components
     - Hs: list
         Number of protons each spectrum integrates for
-    - Lparam: lmfit.Parameters object
-        Normalized parameters
     - param: lmfit.Parameters object
         Actual parameters
     - lims: list of tuple or None
@@ -359,13 +436,13 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
             X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
 
+    # Align the chemical shifts
+    param = pre_alignment(exp, acqus, N_spectra, N, plims, param)
+
     param.add('count', value=0, vary=False)
     # Make a file for saving the convergence path
     cnvg_path = f'{filename.rsplit(".")[0]}.cnvg'
 
-    sys.stdout = open('param', 'w')
-    param.pretty_print()
-    sys.stdout = sys.__stdout__
     # Clear it and write the header
     with open(cnvg_path, 'w') as cnvg:
         cnvg.write('# Step \t Target\n')
@@ -378,9 +455,7 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
             fit_kws['xtol'] = tol
             fit_kws['ftol'] = tol
         print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
-        #TF = TF_norm_der
-        TF = TF_normal
-        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, TF, fit_kws['method']))
+        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, fit_kws['method']))
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
@@ -393,14 +468,20 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
     opt_spectra = calc_spectra(popt, N_spectra, acqus, N)
     #   ...as kz.fit.Peak objects
     opt_spectra_obj = calc_spectra_obj(popt, N_spectra, acqus, N)
+    #   ... and finally make the total trace
+    opt_total = np.sum(opt_spectra, axis=0)
 
     # Normalize the intensities so that they sum up to 1
     for n in range(N_spectra):
-        In = popt[f'S{n+1}_I'].value
+        In = popt[f'S{n+1}_I'].value    # Intensity of the n-th spectrum from the fit
+        # Get relative intensities of the components of the n-th spectrum
         ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n+1}' in key and 'k' in key}
         ri = [f for key, f in ri_dict.items()]
+        # Normalize them
         ri_norm, In_corr = kz.misc.molfrac(ri)
+        # Correct the intensity of the n-th spectrum
         popt[f'S{n+1}_I'].set(value=In*In_corr)
+        # Update the parameters
         for key, value in zip(ri_dict.keys(), ri_norm):
             popt[key].set(value=value)
 
@@ -411,9 +492,9 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
 
+    # Calculate the concentration of the components 
     I_mixture, _ = kz.misc.molfrac(np.array(K_norm) / np.array(Hs))
     
-    opt_total = np.sum(opt_spectra, axis=0)
     # Write the output
     write_output(M, I_abs, I_mixture, opt_spectra_obj, 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
@@ -430,11 +511,6 @@ def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit',
             plims=plims,
             X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
-
-
-        
-
-        
 
 
 
