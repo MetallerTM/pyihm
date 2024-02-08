@@ -74,7 +74,14 @@ def read_input_file(filename):
         if 'COMP_PATH' in lines[0]:
             lines.pop(0)    # Remove the header line
             dic['comp_path'] = []   # Placeholder
+            dic['Hs'] = []   # Placeholder
             for line in lines:  # One path per line
+                if ',' in line:
+                    nH = eval(line.rsplit(',')[-1].replace('H', ''))
+                    line = line.rsplit(',')[0]
+                else:
+                    nH = 1
+                dic['Hs'].append(nH)
                 dic['comp_path'].append(line)
 
         # Delimiters of the fitting region, in ppm
@@ -205,6 +212,7 @@ def read_input(filename):
             dic['fit_bds'],
             dic['fit_kws'],
             dic['plt_opt'],
+            dic['Hs'],
             ]
     return ret_vals
 

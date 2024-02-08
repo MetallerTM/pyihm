@@ -13,7 +13,7 @@ from .gen_param import L2P
 from . import plots
 
 
-def calc_spectra(Lparam, param, N_spectra, acqus, N):
+def calc_spectra(param, N_spectra, acqus, N):
     """
     Computes the spectra to be used as components for the fitting procedure, in form of lists of 1darrays. Each array is the sum of all the peaks.
     This function is called at each iteration of the fit.
@@ -34,14 +34,6 @@ def calc_spectra(Lparam, param, N_spectra, acqus, N):
     - spectra: list of 1darray
         Computed components of the mixture, weighted for their relative intensity
     """
-    # Convert normalized parameters into new parameters
-    for key in Lparam:
-        if key == 'count':
-            continue
-        newkey = key.replace('L', '', 1)
-        value = L2P(Lparam[key].value, param[newkey].min, param[newkey].max)
-        param[newkey].set(value)
-
     # Separate the parameters according to the spectra
     d_param = param.valuesdict()    # Convert to dictionary
     keys = list(d_param.keys())     # Get the keys
@@ -76,7 +68,7 @@ def calc_spectra(Lparam, param, N_spectra, acqus, N):
         spectra.append(dic['I'] * np.sum([peak() for peak in peak_list], axis=0))
     return spectra
 
-def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
+def calc_spectra_obj(param, N_spectra, acqus, N):
     """
     Computes the spectra to be used as components for the fitting procedure, in form of lists of kz.fit.Peak objects. 
     ---------
@@ -96,14 +88,6 @@ def calc_spectra_obj(Lparam, param, N_spectra, acqus, N):
     - spectra: list of kz.fit.Peak objects
         Computed components of the mixture, weighted for their relative intensity
     """
-    # Convert normalized parameters into new parameters
-    for key in Lparam:
-        if key == 'count':
-            continue
-        newkey = key.replace('L', '', 1)
-        value = L2P(Lparam[key].value, param[newkey].min, param[newkey].max)
-        param[newkey].set(value=value)
-
     # Separate the parameters according to the spectra
     d_param = param.valuesdict()    # Convert to dictionary
     keys = list(d_param.keys())     # Get the keys
@@ -179,7 +163,7 @@ def TF_cumsum(exp, I, total):
 
 
 
-def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method):
+def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target, method):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -210,7 +194,7 @@ def f2min(Lparam, param, N_spectra, acqus, N, exp, I, plims, cnvg_path, f_target
     param['count'].value += 1
     count = param['count'].value
     # Compute the trace for each spectrum
-    spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
+    spectra = calc_spectra(param, N_spectra, acqus, N)
     spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
 
     # Sum the spectra to give the total fitting trace
@@ -305,7 +289,7 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
             f.write(f'\n\n')
         
 
-def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, Lparam, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -322,6 +306,8 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
         Mixture spectrum
     - N_spectra: int
         Number of spectra to be used as fitting components
+    - Hs: list
+        Number of protons each spectrum integrates for
     - Lparam: lmfit.Parameters object
         Normalized parameters
     - param: lmfit.Parameters object
@@ -358,7 +344,7 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
     exp_T = np.concatenate([exp[w] for w in plims])
 
     # Calculate initial spectra
-    i_spectra = calc_spectra(Lparam, param, N_spectra, acqus, N)
+    i_spectra = calc_spectra(param, N_spectra, acqus, N)
     # Initial guess of the total calculated spectrum
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
@@ -372,15 +358,6 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
-
-    if 0:
-        for p in Lparam:
-            if 'I' not in p:
-                Lparam[p].set(vary=False)
-        Lparam['LS1_I'].set(value=0.0580)
-        Lparam['LS2_I'].set(value=0.0223)
-        Lparam['LS3_I'].set(value=0.0197)
-
 
     param.add('count', value=0, vary=False)
     # Make a file for saving the convergence path
@@ -400,37 +377,45 @@ def main(M, N_spectra, Lparam, param, lims=None, fit_kws={}, filename='fit', ext
             tol = fit_kws.pop('tol')
             fit_kws['xtol'] = tol
             fit_kws['ftol'] = tol
-        print(f'This fit has {len(Lparam)} parameters.\nStarting fit...')
+        print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
         #TF = TF_norm_der
-        TF = TF_cumsum
-        minner = l.Minimizer(f2min, Lparam, fcn_args=(param, N_spectra, acqus, N, exp_T, I, plims, cnvg_path, TF, fit_kws['method']))
+        TF = TF_normal
+        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, TF, fit_kws['method']))
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
         return result
     result = start_fit()
 
     # Get the optimized parameters
-    Lpopt = result.params
+    popt = result.params
     # Calculate the optimized spectra
     #   ...as arrays
-    opt_spectra = calc_spectra(Lpopt, param, N_spectra, acqus, N)
+    opt_spectra = calc_spectra(popt, N_spectra, acqus, N)
     #   ...as kz.fit.Peak objects
-    opt_spectra_obj = calc_spectra_obj(Lpopt, param, N_spectra, acqus, N)
+    opt_spectra_obj = calc_spectra_obj(popt, N_spectra, acqus, N)
 
     # Normalize the intensities so that they sum up to 1
+    for n in range(N_spectra):
+        In = popt[f'S{n+1}_I'].value
+        ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n+1}' in key and 'k' in key}
+        ri = [f for key, f in ri_dict.items()]
+        ri_norm, In_corr = kz.misc.molfrac(ri)
+        popt[f'S{n+1}_I'].set(value=In*In_corr)
+        for key, value in zip(ri_dict.keys(), ri_norm):
+            popt[key].set(value=value)
+
     #   Get the actual intensities
-    K = [f for key, f in param.valuesdict().items() if 'I' in key]
+    K = [f for key, f in popt.valuesdict().items() if 'I' in key]
     #   Normalize them
-    print(K)
     K_norm, I_corr = kz.misc.molfrac(K)
-    print(K_norm)
-    print(I_corr)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
+
+    I_mixture, _ = kz.misc.molfrac(np.array(K_norm) / np.array(Hs))
     
     opt_total = np.sum(opt_spectra, axis=0)
     # Write the output
-    write_output(M, I_abs, K_norm, opt_spectra_obj, 
+    write_output(M, I_abs, I_mixture, opt_spectra_obj, 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             filename=f'{filename}.out')
     print(f'The results of the fit are saved in {filename}.out.\n')

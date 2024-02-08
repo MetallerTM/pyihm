@@ -29,7 +29,7 @@ inp_files = sys.argv[1:]
 for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(sys.argv)-1} input file.\n')
-    filename, mix_path, mix_kws, mix_txtf, comp_path, lims, bds, fit_kws, plt_opt = read_input(inp_file)
+    filename, mix_path, mix_kws, mix_txtf, comp_path, lims, bds, fit_kws, plt_opt, Hs = read_input(inp_file)
 
 
     ## Load the mixture spectrum
@@ -70,6 +70,6 @@ for n_inp, inp_file in enumerate(inp_files):
     print('Done.\n')
 
     # Do the fit and save figures and output file
-    do_fit(M, len(components), Lparam, param, lims, fit_kws, filename, **plt_opt)
+    do_fit(M, len(components), Hs, Lparam, param, lims, fit_kws, filename, **plt_opt)
 
     print('*'*80)
