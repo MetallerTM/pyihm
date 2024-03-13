@@ -169,7 +169,7 @@ class Spectr:
         return total
 
 
-def main(M, spectra_dir, lims=None):
+def main(M, spectra_dir, Hs, lims=None):
     """
     Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
     Then, computes a list of Spectr objects with those parameters, and returns it.
@@ -206,11 +206,13 @@ def main(M, spectra_dir, lims=None):
     components = [] # Whole spectra
     # Collect the parameters of the peaks
     spectra_peaks = [kz.fit.read_vf(file) for file in spectra_dir]
-    for all_peaks in spectra_peaks: # Unpacks the fitting regions
+    for j, all_peaks in enumerate(spectra_peaks): # Unpacks the fitting regions
         whole_spectrum = []   # Create empty list of components
+        total_I = 0
         for region_peaks in all_peaks:      # Unpack the peaks in a given region
             # Remove total intensity and fitting window
             I = region_peaks.pop('I')
+            total_I += I
             region_peaks.pop('limits')
             peaks = []      # Empty list
             for key in sorted(region_peaks.keys()): # Iterate on the peak index
@@ -229,12 +231,29 @@ def main(M, spectra_dir, lims=None):
         # Get the absolute values
         K_vals = [p.par()['k'] for p in whole_spectrum]
         # Normalize them
-        K_norm, _ = kz.misc.molfrac(K_vals)
+        K_norm, only_I = kz.misc.molfrac(K_vals)
+        # Correct nuclei count
+        Hs[j] = round(Hs[j] * only_I / total_I)
         # Put the new ones
         for p, k in zip(whole_spectrum, K_norm):
-            p.k = k
+            p.k = Hs[j] * k 
 
         # At the end, generate the Spectr object and add it to a list
-        components.append(Spectr(acqus, *whole_spectrum))
+        if len(whole_spectrum):
+            components.append(Spectr(acqus, *whole_spectrum))
+        else:
+            components.append('Q')
 
-    return components
+    def find_indices(list_to_check, item_to_find):
+        return [idx for idx, value in enumerate(list_to_check) if value == item_to_find]
+    missing = find_indices(components, 'Q')
+    if len(missing):
+        for j in missing:
+            Hs[j] = 'Q'
+        while 'Q' in Hs:
+            Hs.pop(Hs.index('Q'))
+        
+        print(f'Components {", ".join([str(w+1) for w in missing])} have no peaks in the selected range.')
+        pass
+    
+    return components, Hs, missing

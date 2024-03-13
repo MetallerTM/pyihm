@@ -89,7 +89,10 @@ def read_input_file(filename):
             lines.pop(0)    # Remove the header line
             dic['fit_lims'] = []   # Placeholder
             for line in lines:  # One region per line
-                dic['fit_lims'].append(tuple(eval(line)))
+                try:
+                    dic['fit_lims'].append(tuple(eval(line)))
+                except:
+                    continue
 
         # Boundaries for the parameters of the fit
         if 'FIT_BDS' in lines[0]:

@@ -6,7 +6,7 @@ from matplotlib.widgets import Button, SpanSelector
 import klassez as kz
 
 
-def select_regions(ppm_scale, spectrum):
+def select_regions(ppm_scale, spectrum, full_calc):
     """
     Interactively select the slices that will be used in the fitting routine.
     ---------------
@@ -156,7 +156,10 @@ def select_regions(ppm_scale, spectrum):
     save_button = Button(save_box, 'SAVE\nAND\nEXIT', hovercolor='0.975')
 
     # Plot the spectrum
-    ax.plot(ppm_scale, S, c='tab:blue', lw=0.8)
+    ax.plot(ppm_scale, S, c='tab:blue', lw=1.2, label='Mixture')
+    if isinstance(full_calc, np.ndarray):
+        full_calc_norm = full_calc / max(full_calc) * max(S)
+        ax.plot(ppm_scale, full_calc_norm, c='r', lw=0.7, label='Initial guess')
 
     # Add axes labels
     ax.set_xlabel(r'$\delta\,$ /ppm')

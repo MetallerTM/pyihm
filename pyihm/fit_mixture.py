@@ -36,9 +36,11 @@ def calc_spectra(param, N_spectra, acqus, N):
     keys = list(d_param.keys())     # Get the keys
     spectra_par = []    # Placeholder
 
-    for n in range(N_spectra):  # read: for each spectrum
+    component_idx = [int(key.split('_')[0].replace('S', '')) for key in param if 'I' in key]
+    for n in component_idx:  # read: for each spectrum
         # Make a list of dictionaries. Each dictionary contains only the parameters relative to a given spectrum
-        spectra_par.append({key.replace(f'S{n+1}_', ''): d_param[key] for key in keys if f'S{n+1}' in key})
+        spectra_par.append({key.replace(f'S{n}_', ''): d_param[key] for key in keys if f'S{n}_' in key})
+
 
     # How many peaks there are in each spectrum?
     peaks_idx = []  # Placeholder
@@ -50,7 +52,7 @@ def calc_spectra(param, N_spectra, acqus, N):
 
     # Now we make the spectra!
     spectra = []    # Placeholder
-    for n in range(N_spectra):
+    for n in range(N_spectra): # read: for each spectrum
         dic = dict(spectra_par[n])  # Alias for the n-th spectrum peaks
         # Generate the fit.Peak objects
         peak_list = [kz.fit.Peak(acqus,
@@ -88,9 +90,10 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
     keys = list(d_param.keys())     # Get the keys
     spectra_par = []    # Placeholder
 
-    for n in range(N_spectra):  # read: for each spectrum
+    component_idx = [int(key.split('_')[0].replace('S', '')) for key in param if 'I' in key]
+    for n in component_idx:  # read: for each spectrum
         # Make a list of dictionaries. Each dictionary contains only the parameters relative to a given spectrum
-        spectra_par.append({key.replace(f'S{n+1}_', ''): d_param[key] for key in keys if f'S{n+1}' in key})
+        spectra_par.append({key.replace(f'S{n}_', ''): d_param[key] for key in keys if f'S{n}_' in key})
 
     # How many peaks there are in each spectrum?
     peaks_idx = []  # Placeholder
@@ -102,7 +105,7 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
 
     # Now we make the spectra!
     spectra = []    # Placeholder
-    for n in range(N_spectra):
+    for n in range(N_spectra):  # read: for each spectrum
         dic = dict(spectra_par[n])  # Alias for the n-th spectrum peaks
         # Generate the fit.Peak objects
         peak_list = [kz.fit.Peak(acqus,
@@ -117,9 +120,7 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
         spectra.append(peak_list)
     return spectra
 
-
-
-def f2min_align(param, N_spectra, acqus, N, exp, plims):
+def f2min_align(param, N_spectra, acqus, N, exp, plims, debug=False):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -154,21 +155,35 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims):
     F_total = [kz.processing.integral(s) for s in total_T]
 
     R = []      # Placeholder for residuals
-    F_calc = [] # Placeholder for total fitting trace
+    calc = [] # Placeholder for total fitting trace
 
     for E, C in zip(exp, F_total):      # Loop on the fitting windows
         # Calculate the intensity and offset factors
         intensity, offset = kz.fit.fit_int(E, C)    
         # Correct the calculated spectrum for these values
-        F_calc.append(intensity * C + offset)
+        calc.append(intensity * C + offset)
         # Compute the residuals
         tmp_res = E - (intensity * C + offset)
         R.append(tmp_res)
     # Make experimental and calculated spectrum a 1darray by concatenating the windows
     F_exp = np.concatenate(exp)
-    F_calc = np.concatenate(F_calc)
+    F_calc = np.concatenate(calc)
     # Make the residuals a 1darray by concatenating the windows
     t_residual = np.concatenate(R)
+
+    if debug:
+        # FIGURE
+        if (count-1) % 20 == 0:
+            kz.figures.ongoing_fit(
+                    F_exp, F_calc, t_residual,
+                    filename='ongoing_align', dpi=200
+                    )
+            kz.figures.ongoing_fit(
+                    np.concatenate([np.gradient(y) for y in exp]),
+                    np.concatenate([np.gradient(y) for y in calc]),
+                    np.concatenate([np.gradient(y) for y in R]),
+                    filename='ongoing_align_spectrum', dpi=200
+                    )
 
     # Compute the target value and print it
     target = np.sum(t_residual**2) / len(t_residual)
@@ -176,54 +191,7 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims):
 
     return t_residual
 
-
-def f2min_lm(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
-    """
-    Function to compute the quantity to be minimized by the fit.
-    ----------
-    Parameters:
-    - param: lmfit.Parameters object
-        actual parameters
-    - N_spectra: int
-        Number of spectra to be used as components
-    - acqus: dict
-        Dictionary of acquisition parameters
-    - N: int
-        Number of points for zero-filling, i.e. final dimension of the arrays
-    - exp: 1darray
-        Experimental spectrum
-    - I: float
-        Intensity correction for the calculated spectrum. Used to maintain the relative intensity small.
-    - plims: slice
-        Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
-    - cnvg_path: str
-        Path for the file where to save the convergence path
-    ----------
-    Returns:
-    - target: 1darray
-        Array of the residuals
-    """
-    param['count'].value += 1
-    count = param['count'].value
-    # Compute the trace for each spectrum
-    spectra = calc_spectra(param, N_spectra, acqus, N)
-    spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
-
-    # Sum the spectra to give the total fitting trace
-    total = np.sum(spectra_T, axis=0)
-
-    t_residual = exp / I - total
-
-    target = np.sum(t_residual**2) / len(t_residual)
-
-    # Print how the fit is going, both in the file and in standart output
-    with open(cnvg_path, 'a', buffering=1) as cnvg:
-        cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
-    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
-
-    return t_residual
-
-def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
+def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq', debug=False):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -252,6 +220,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
     param['count'].value += 1
     count = param['count'].value
     # Compute the trace for each spectrum
+    x = np.arange(N)
     spectra = calc_spectra(param, N_spectra, acqus, N)
     spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
 
@@ -262,15 +231,22 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path):
 
     target = np.sum(t_residual**2) / len(t_residual)
 
+    if debug:
+        if (count-1) % 20 == 0:
+            kz.figures.ongoing_fit(exp/I, total, t_residual, filename='ongoing_fit', dpi=200)
+
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
-    return target
+    if method == 'leastsq':
+        return t_residual
+    else:
+        return target
 
 
-def write_output(M, I, K, spectra, lims, filename='fit.report'):
+def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
     """
     Write a report of the performed fit in a file.
     The parameters of the single peaks are saved using the kz.fit.write_vf function.
@@ -301,7 +277,7 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
     f.write(f'Absolute intensity correction: I = {I:.5e}\n\n')
     f.write('Relative intensities:\n')
     for k, r_i in enumerate(K):
-        f.write(f'Comp. {k+1:>3}: {r_i:.5f}\n')
+        f.write(f'Comp. {n_comp[k]:>3}: {r_i:.5f}\n')
     f.write('\n\n\n')
     f.close()
 
@@ -311,14 +287,14 @@ def write_output(M, I, K, spectra, lims, filename='fit.report'):
         dict_component = {j+1: peak for j, peak in enumerate(component)}
         # Spacer for the spectrum identifier
         with open(filename, 'a', buffering=1) as f:
-            f.write(f'Component {k+1} fitted parameters:\n')
+            f.write(f'Component {n_comp[k]} fitted parameters:\n')
         # Do the writing
         kz.fit.write_vf(filename, dict_component, lims, K[k]*I)
         # Add space
         with open(filename, 'a', buffering=1) as f:
             f.write(f'\n\n')
         
-def pre_alignment(exp, acqus, N_spectra, N, plims, param):
+def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     """
     Makes a fit with all the parameters blocked, except for the chemical shifts, on the target function of the integral.
     Used to improve the initial guess in case of misplacements of the signals.
@@ -364,9 +340,9 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param):
     @kz.cron
     def start_fit_align():
         print('Starting alignment fit...')
-        minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims))
-        result = minner.minimize(method='leastsq', xtol=1e-8, ftol=1e-8, gtol=1e-8)
-        print(f'Alignment {result.message}\nNumber of function evaluations: {result.nfev}.')
+        minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims, DEBUG_FLAG))
+        result = minner.minimize(method='leastsq', max_nfev=20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+        print(f'Alignment {result.message} Number of function evaluations: {result.nfev}.')
         return result
     result = start_fit_align()
     popt = result.params
@@ -378,7 +354,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param):
     return popt
 
 
-def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_FLAG=False, ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -432,12 +408,13 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='ti
 
     # Calculate initial spectra
     i_spectra = calc_spectra(param, N_spectra, acqus, N)
+
     # Initial guess of the total calculated spectrum
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
     #I, _ = kz.fit.fit_int(exp_T, i_total_T)             
-    I = kz.processing.integrate(exp_T, x=M.freq) / (M.acqus['SW']/2)
+    I = kz.processing.integrate(exp_T, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
 
     # Plot the initial guess
     print('Saving figure of the initial guess...')
@@ -446,10 +423,28 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='ti
             X_label=X_label, filename=filename, ext=ext, dpi=dpi)
     print('Done.\n')
 
+
     # Align the chemical shifts
-    param = pre_alignment(exp, acqus, N_spectra, N, plims, param)
+    param = pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG)
+
+    # Figure of aligned iguess
+    #   ...as arrays
+    algn_spectra = calc_spectra(param, N_spectra, acqus, N)
+    #   ...as kz.fit.Peak objects
+    algn_spectra_obj = calc_spectra_obj(param, N_spectra, acqus, N)
+    #   ... and finally make the total trace
+    algn_total = np.sum(algn_spectra, axis=0)
+
+    print('Saving figures...')
+    plots.plot_output(M.ppm, exp, I*algn_total, [I*s for s in algn_spectra], 
+            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+            plims=plims,
+            X_label=X_label, filename=f'{filename}-algn', ext=ext, dpi=dpi)
+    print('Done.\n')
+
 
     param.add('count', value=0, vary=False)
+
     # Make a file for saving the convergence path
     cnvg_path = f'{filename.rsplit(".")[0]}.cnvg'
 
@@ -465,9 +460,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='ti
             fit_kws['xtol'] = tol
             fit_kws['ftol'] = tol
             fit_kws['gtol'] = tol
-            minner = l.Minimizer(f2min_lm, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
-        else:
-            minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path))
+        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, fit_kws['method'], DEBUG_FLAG))
         print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
         result = minner.minimize(**fit_kws)
         print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
@@ -484,32 +477,35 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', ext='ti
     #   ... and finally make the total trace
     opt_total = np.sum(opt_spectra, axis=0)
 
+    component_idx = [int(key.split('_')[0].replace('S', '')) for key in popt if 'I' in key]
     # Normalize the intensities so that they sum up to 1
-    for n in range(N_spectra):
-        In = popt[f'S{n+1}_I'].value    # Intensity of the n-th spectrum from the fit
+    for n in component_idx:
+        In = popt[f'S{n}_I'].value    # Intensity of the n-th spectrum from the fit
         # Get relative intensities of the components of the n-th spectrum
-        ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n+1}' in key and 'k' in key}
+        ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n}' in key and 'k' in key}
         ri = [f for key, f in ri_dict.items()]
         # Normalize them
         ri_norm, In_corr = kz.misc.molfrac(ri)
         # Correct the intensity of the n-th spectrum
-        popt[f'S{n+1}_I'].set(value=In*In_corr)
+        popt[f'S{n}_I'].set(value=In*In_corr)
         # Update the parameters
         for key, value in zip(ri_dict.keys(), ri_norm):
             popt[key].set(value=value)
 
     #   Get the actual intensities
-    K = [f for key, f in popt.valuesdict().items() if 'I' in key]
+    K = np.array([f for key, f in popt.valuesdict().items() if 'I' in key]) / Hs
+
     #   Normalize them
     K_norm, I_corr = kz.misc.molfrac(K)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
 
     # Calculate the concentration of the components 
-    I_mixture, _ = kz.misc.molfrac(np.array(K_norm) / np.array(Hs))
+    I_mixture, _ = kz.misc.molfrac(np.array(K_norm))# / np.array(Hs))
     
     # Write the output
     write_output(M, I_abs, I_mixture, opt_spectra_obj, 
+            n_comp = component_idx,
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             filename=f'{filename}.out')
     print(f'The results of the fit are saved in {filename}.out.\n')

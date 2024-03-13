@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import klassez as kz
 import lmfit as l
 
-def as_par(name, value, lims=0, rel=True):
+def as_par(name, value, lims=0, rel=True, minthresh=None):
     """
     Creates a lmfit.Parameter object using the given parameters.
     ---------
@@ -39,9 +39,17 @@ def as_par(name, value, lims=0, rel=True):
             if rel is True:
                 minval = value - lims*value
                 maxval = value + lims*value
+                if minval == maxval:
+                    minval = value - 1e-10
+                    maxval = value + 1e-10
             else:
                 minval = value - lims
                 maxval = value + lims
+
+
+        # Replace lower boundary with absolute value
+        if minthresh is not None:
+            minval = max(minval, minthresh)
 
         # Now create the Parameter object with the given values
         p = l.Parameter(
@@ -88,21 +96,23 @@ def singlet2par(item, spect, bds):
         f'S{spect}_s{idx}',
         dic['fwhm'],
         bds['stol'],
-        rel=False
+        rel=False,
+        minthresh=0,
         ))
     #   intensity
     p.append(as_par(
         f'S{spect}_k{idx}',
         dic['k'],
         bds['ktol'],
-        rel=False
+        rel=False,
+        minthresh=0,
         ))
     #   x_g
     p.append(as_par(
         f'S{spect}_x_g{idx}',
         dic['x_g'],
         (0, 1),
-        rel=False
+        rel=False,
         ))
     return p
 
@@ -155,6 +165,8 @@ def multiplet2par(item, spect, group, bds):
             f'S{spect}_s{idx}',
             dic['fwhm'],
             bds['stol'],
+            rel=False, 
+            minthresh=0,
             ))
         # intensity
         p.append(as_par(
@@ -162,6 +174,7 @@ def multiplet2par(item, spect, group, bds):
             dic['k'],
             bds['ktol'],
             rel=False,
+            minthresh=0,
             ))
         #   x_g
         p.append(as_par(
@@ -173,7 +186,7 @@ def multiplet2par(item, spect, group, bds):
     return p
 
 
-def main(M, components, bds, lims):
+def main(M, components, bds, lims, Hs):
     """
     Create the lmfit.Parameters objects needed for the fitting procedure.
     -----------
@@ -195,13 +208,15 @@ def main(M, components, bds, lims):
     # Get acqus and the spectra as collection of peaks
     acqus = dict(M.acqus)
     N = M.r.shape[-1]
-    N_spectra = len(components) # Number of spectra
+    N_spectra = len([w for w in components if w != 'Q']) # Number of spectra
 
     # Create the parameter object
     param = l.Parameters()
     for k, S in enumerate(components):  # Loop on the spectra
+        if S == 'Q':
+            continue
         # Intensity
-        param.add(as_par(f'S{k+1}_I', 1/N_spectra, (0, 2)))
+        param.add(as_par(f'S{k+1}_I', 1, (0, np.sum(Hs))))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!
