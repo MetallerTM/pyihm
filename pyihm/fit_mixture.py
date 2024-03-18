@@ -10,7 +10,7 @@ import lmfit as l
 
 from .gen_param import main as gen_param
 from . import plots
-
+from . import GUIs
 
 def calc_spectra(param, N_spectra, acqus, N):
     """
@@ -137,6 +137,8 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims, debug=False):
         Experimental spectrum
     - plims: slice
         Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
+    - debug: bool
+        True for saving a figure of the ongoing fit every 20 iterations
     ----------
     Returns:
     - target: float
@@ -191,6 +193,69 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims, debug=False):
 
     return t_residual
 
+def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
+    """
+    Makes a fit with all the parameters blocked, except for the chemical shifts, on the target function of the integral.
+    Used to improve the initial guess in case of misplacements of the signals.
+    ----------
+    - exp: 1darray
+        Experimental spectrum
+    - acqus: dict
+        Dictionary of acquisition parameters
+    - N_spectra: int
+        Number of spectra to be used as components
+    - N: int
+        Number of points for zero-filling, i.e. final dimension of the arrays
+    - plims: list of slice
+        Delimiters for the fitting region. The residuals are computed only in these regions. They must be given as point indices
+    - param: lmfit.Parameters object
+        actual parameters
+    - DEBUG_FLAG: bool
+        True for saving a figure of the ongoing fit every 20 iterations
+
+    ----------
+    Returns:
+    - popt: lmfit.Parameters object
+        Parameters with optimal chemical shifts
+    """
+
+    # Cut the experimental spectrum according to the fitting windows
+    exp_T = [exp[w] for w in plims]
+    # Compute the integrals of the experimental spectrum for each window
+    Fexp_T = [kz.processing.integral(f) for f in exp_T]
+    # Normalize it to make smaller numbers
+    Fexp_T = [s / np.max(np.concatenate(Fexp_T)) for s in Fexp_T]
+
+    # Add the fit counter
+    param.add('count', value=0, vary=False)
+    # Store the 'vary' status of all the parameters
+    vary_dict = {}
+    for p in param: # Loop on the parameters name
+        vary_dict[p] = param[p].vary    # Store
+        # Block all parameters that are not chemical shifts
+        if 'u' in p or 'U' in p:
+            pass
+        else:
+            param[p].set(vary=False)
+
+    # Make the fit
+    @kz.cron
+    def start_fit_align():
+        print('Starting alignment fit...')
+        minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims, DEBUG_FLAG))
+        result = minner.minimize(method='leastsq', max_nfev=20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+        print(f'Alignment {result.message} Number of function evaluations: {result.nfev}.')
+        return result
+    result = start_fit_align()
+    popt = result.params
+
+    # Reset the "vary" status of the parameters to the original one
+    for p in param:
+        popt[p].set(vary=vary_dict[p])
+
+    return popt
+
+
 def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq', debug=False):
     """
     Function to compute the quantity to be minimized by the fit.
@@ -212,6 +277,8 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq'
         Delimiters for the fitting region. The residuals are computed only in this regio. They must be given as point indices
     - cnvg_path: str
         Path for the file where to save the convergence path
+    - debug: bool
+
     ----------
     Returns:
     - target: float or 1darray
@@ -258,8 +325,12 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
         Absolute intensity for the calculated spectrum
     - K: sequence
         Relative intensities of the spectra in the mixture
+    - spectra: list of kz.fit.Peak objects
+        Computed components of the mixture, weighted for their relative intensity
+    - n_comp: list
+        Indices of the components of the mixture
     - lims: tuple
-        Boundaries of the fit region
+        Upper and lower boundaries of the fit region
     - filename: str
         Name of the file where to write the files.
     """
@@ -277,7 +348,7 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
     f.write(f'Absolute intensity correction: I = {I:.5e}\n\n')
     f.write('Relative intensities:\n')
     for k, r_i in enumerate(K):
-        f.write(f'Comp. {n_comp[k]:>3}: {r_i:.5f}\n')
+        f.write(f'Comp. {n_comp[k]:>3}: {r_i*100:10.5g}%\n')
     f.write('\n\n\n')
     f.close()
 
@@ -293,68 +364,33 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
         # Add space
         with open(filename, 'a', buffering=1) as f:
             f.write(f'\n\n')
-        
-def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
+
+def save_data(filename, ppm_scale, exp, *opt_spectra):
     """
-    Makes a fit with all the parameters blocked, except for the chemical shifts, on the target function of the integral.
-    Used to improve the initial guess in case of misplacements of the signals.
-    ----------
+    Saves the ppm scale, the experimental spectrum, the total trace and the components in .csv files, to be opened with excel, origin, or whatever.
+    ---------
+    Parameters:
+    - filename: str
+        Location of the filename to be saved, without the .csv extension.
+    - ppm_scale: 1darray
+        PPM scale of the experimental spectrum
     - exp: 1darray
-        Experimental spectrum
-    - acqus: dict
-        Dictionary of acquisition parameters
-    - N_spectra: int
-        Number of spectra to be used as components
-    - N: int
-        Number of points for zero-filling, i.e. final dimension of the arrays
-    - plims: list of slice
-        Delimiters for the fitting region. The residuals are computed only in these regions. They must be given as point indices
-    - param: lmfit.Parameters object
-        actual parameters
-    ----------
-    Returns:
-    - popt: lmfit.Parameters object
-        Parameters with optimal chemical shifts
+        Experimental spectrum, real part
+    - opt_spectra: sequence of 1darray
+        Spectra of the components
     """
+    # Make the header for the columns
+    header = ['PPM_SCALE', 'EXPERIMENTAL', 'TOTAL'] + [f'COMPONENT_{k+1}' for k in range(len(opt_spectra))]
+    # Assemble all the information in a single 2darray
+    data = [ ppm_scale, exp, np.sum(opt_spectra, axis=0)] + [ y for y in opt_spectra]
+    # Transpose to make it column_wise
+    data_arr = np.array(data).T
+    # Save the file. "comments=''" is needed because header appears as a comment, therefore adds a column
+    np.savetxt(f'{filename}.csv', data_arr, header=' '.join(header), comments='')
 
-    # Cut the experimental spectrum according to the fitting windows
-    exp_T = [exp[w] for w in plims]
-    # Compute the integrals of the experimental spectrum for each window
-    Fexp_T = [kz.processing.integral(f) for f in exp_T]
-    # Normalize it to make smaller numbers
-    Fexp_T = [s / np.max(np.concatenate(Fexp_T)) for s in Fexp_T]
+        
 
-    # Add the fit counter
-    param.add('count', value=0, vary=False)
-    # Store the 'vary' status of all the parameters
-    vary_dict = {}
-    for p in param: # Loop on the parameters name
-        vary_dict[p] = param[p].vary    # Store
-        # Block all parameters that are not chemical shifts
-        if 'u' in p or 'U' in p:
-            pass
-        else:
-            param[p].set(vary=False)
-
-    # Make the fit
-    @kz.cron
-    def start_fit_align():
-        print('Starting alignment fit...')
-        minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims, DEBUG_FLAG))
-        result = minner.minimize(method='leastsq', max_nfev=20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
-        print(f'Alignment {result.message} Number of function evaluations: {result.nfev}.')
-        return result
-    result = start_fit_align()
-    popt = result.params
-
-    # Reset the "vary" status of the parameters to the original one
-    for p in param:
-        popt[p].set(vary=vary_dict[p])
-
-    return popt
-
-
-def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_FLAG=False, ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLAG=False, DEBUG_FLAG=False, ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -381,6 +417,10 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
         Additional parameters for the lmfit.Minimizer.minimize function
     - filename: str
         Root of the names for the names of the files that will be saved.
+    - CAL_FLAG: bool
+        True for adjusting the initial guess before starting the fit
+    - DEBUG_FLAG: bool
+        True for saving a figure of the ongoing fit every 20 iterations
     - ext: str
         Format of the figures
     - dpi: int
@@ -389,6 +429,13 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     # Get the parameters for building the spectra
     acqus = dict(M.acqus)
     N = M.r.shape[-1]
+
+    # Get names for the figures
+    if os.sep in filename:
+        base_dir, name = filename.rsplit(os.sep, 1)
+    else:
+        base_dir = os.getcwd()
+        name = filename
 
     # Add the nucleus to the xlabel
     X_label = '$\delta\ $'+kz.misc.nuc_format(M.acqus['nuc'])+' /ppm'
@@ -413,16 +460,20 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    #I, _ = kz.fit.fit_int(exp_T, i_total_T)             
     I = kz.processing.integrate(exp_T, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
 
     # Plot the initial guess
     print('Saving figure of the initial guess...')
     plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
-            X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
+    # Save the data in a .csv file
+    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-iguess'), M.ppm, M.r, *[I*y for y in i_spectra])
     print('Done.\n')
 
+    # Adjust initial guess
+    if CAL_FLAG:
+        param = GUIs.cal_gui(M.ppm, exp, param, N_spectra, acqus, N, I)
 
     # Align the chemical shifts
     param = pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG)
@@ -439,14 +490,15 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     plots.plot_output(M.ppm, exp, I*algn_total, [I*s for s in algn_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
-            X_label=X_label, filename=f'{filename}-algn', ext=ext, dpi=dpi)
+            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}-algn'), ext=ext, dpi=dpi)
+    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-algn'), M.ppm, M.r, *[I*y for y in algn_spectra])
     print('Done.\n')
 
 
     param.add('count', value=0, vary=False)
 
     # Make a file for saving the convergence path
-    cnvg_path = f'{filename.rsplit(".")[0]}.cnvg'
+    cnvg_path = os.path.join(base_dir, f'{name}-DATA', f'{filename.rsplit(".")[0]}.cnvg')
 
     # Clear it and write the header
     with open(cnvg_path, 'w') as cnvg:
@@ -463,7 +515,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
         minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, fit_kws['method'], DEBUG_FLAG))
         print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
         result = minner.minimize(**fit_kws)
-        print(f'{result.message}\nNumber of function evaluations: {result.nfev}.')
+        print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
         return result
     result = start_fit()
 
@@ -502,6 +554,12 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
 
     # Calculate the concentration of the components 
     I_mixture, _ = kz.misc.molfrac(np.array(K_norm))# / np.array(Hs))
+
+    # Print relative concentrations of the components
+    print('FIT RESULTS')
+    for k, K in enumerate(I_mixture):
+        print(f'Component {k+1:2.0f}: {K*100:10.5g}%')
+    print()
     
     # Write the output
     write_output(M, I_abs, I_mixture, opt_spectra_obj, 
@@ -511,14 +569,15 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     print(f'The results of the fit are saved in {filename}.out.\n')
     
     # Make the plot of the convergence path
-    plots.convergence_path(cnvg_path, filename=f'{filename}_cnvg', ext=ext, dpi=dpi)
+    plots.convergence_path(cnvg_path, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}_cnvg'), ext=ext, dpi=dpi)
 
     # Make the figures
     print('Saving figures...')
     plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
-            X_label=X_label, filename=filename, ext=ext, dpi=dpi)
+            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
+    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-result'), M.ppm, M.r, *[I*y for y in algn_spectra])
     print('Done.\n')
 
 

@@ -25,24 +25,44 @@ def print_header():
 print_header()
 
 inp_files = sys.argv[1:]
-if '--debug' in inp_files:
 
-    inp_files.pop(inp_files.index('--debug'))
+# Get the options
+options = [w for w in inp_files if w[:2] == '--']
+for opt in options:
+    # Remove options from the list of input files
+    inp_files.pop(inp_files.index(opt))
+# Set debug flag
+if '--debug' in options:
     DEBUG_FLAG = True
 else:
     DEBUG_FLAG = False
+# Set calibration flag
+if '--cal' in options:
+    CAL_FLAG = True
+else:
+    CAL_FLAG = False
 
 for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(inp_files)} input file.\n')
     filename, mix_path, mix_kws, mix_txtf, proc_opt, comp_path, lims, bds, fit_kws, plt_opt, Hs = read_input(inp_file)
 
+    # Create the folders where to save the data and the figures
+    if os.sep in filename:
+        base_dir, name = filename.rsplit(os.sep, 1)
+    else:
+        base_dir = os.getcwd()
+        name = filename
+    if f'{name}-FIGURES' not in os.listdir(base_dir):
+        os.mkdir(os.path.join(base_dir, f'{name}-FIGURES'))
+    if f'{name}-DATA' not in os.listdir(base_dir):
+        os.mkdir(os.path.join(base_dir, f'{name}-DATA'))
 
     ## Load the mixture spectrum
     print('Reading the mixture spectrum...')
     M = kz.Spectrum_1D(mix_path, **mix_kws)
     acqus = M.acqus
-    # Do the FT
+    # Process
     if mix_txtf is None:
         for key, value in proc_opt['wf'].items():
             M.procs[key] = value
@@ -92,8 +112,9 @@ for n_inp, inp_file in enumerate(inp_files):
 
     while 'Q' in components:
         components.pop(components.index('Q'))
-
+        
     # Do the fit and save figures and output file
-    do_fit(M, len(components), Hs, param, lims, fit_kws, filename, DEBUG_FLAG, **plt_opt)
+    do_fit(M, len(components), Hs, param, lims, fit_kws, filename, CAL_FLAG, DEBUG_FLAG, **plt_opt)
 
     print('*'*80)
+

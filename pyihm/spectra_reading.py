@@ -253,7 +253,9 @@ def main(M, spectra_dir, Hs, lims=None):
         while 'Q' in Hs:
             Hs.pop(Hs.index('Q'))
         
-        print(f'Components {", ".join([str(w+1) for w in missing])} have no peaks in the selected range.')
-        pass
+        if len(missing) == 1:
+            print(f'Component {", ".join([str(w+1) for w in missing])} has no peaks in the selected range.')
+        else:
+            print(f'Components {", ".join([str(w+1) for w in missing])} have no peaks in the selected range.')
     
     return components, Hs, missing

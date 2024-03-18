@@ -225,6 +225,8 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
     # Calculate the spectra of the components of the mixture
     i_spectra = calc_spectra(param, N_spectra, acqus, N)
 
+    comp_idx = [eval(p.split('_I')[0].replace('S', '')) for p in param if '_I' in p]
+
     # Initialize the parameters to be modified interactively
     roll_n = [0 for w in range(N_spectra)]      # shift in points
     I_s = [1 for w in range(N_spectra)]         # intensity factor
@@ -351,7 +353,7 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
         """ Update the values text """
         for k in range(N_spectra):
             text_prompt[k].set_text(
-                    f'{k+1:>2.0f}: {roll_n[k]*pt_ppm:-10.4f}, {I_s[k]:10.4f}'
+                    f'{comp_idx[k]:>2.0f}: {roll_n[k]*pt_ppm:-10.4f}, {I_s[k]:10.4f}'
                     )
         plt.draw()
 
@@ -410,6 +412,7 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
     set_prompt_text()
 
     # Fancy stuff for axes and fontsizes
+    ax.set_title(r'Calibration for field drift and intensity')
     ax.set_xlabel(r'$\delta\,$ /ppm')
     kz.misc.pretty_scale(ax, ax.get_xlim()[::-1], 'x')
     kz.misc.pretty_scale(ax, ax.get_ylim(), 'y')
@@ -430,7 +433,7 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
     Icorr = np.array(I_s)               # Convert to array
     # Adjust the parameters
     for k in range(N_spectra):
-        param[f'S{k+1}_I'].value *= Icorr[k]    # Intensity
+        param[f'S{comp_idx[k]}_I'].value *= Icorr[k]    # Intensity
         for p in param:
             if f'S{k+1}_' in p and ('U' in p or 'u' in p):  # Chemical shifts
                 param[p].value += drifts[k]
