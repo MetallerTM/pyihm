@@ -70,6 +70,39 @@ def read_input_file(filename):
         if 'MIX_SPECTRUM_TXT' in lines[0]:
             dic['mix_spectrum_txt'] = lines[1]
 
+        # Processing options
+        if 'PROC_OPTS' in lines[0]:
+            lines.pop(0)    # Remove the header line
+            dic['proc_opt'] = {}        # Placeholder
+            for line in lines:
+                line = line.split(':', 1)   # Separate at : to distinguish key and values
+                if 'wf' in line[0]:         # Window function options
+                    P = line[1].split(',')  # Separate additional arguments
+                    # Add window function options, to resemble procs dictionary
+                    dic['proc_opt']['wf'] = {}      # Placeholder
+                    dic['proc_opt']['wf']['mode'] = f'{P[0]}'   
+                    for PP in P:    # Other stuff
+                        try:    # There might not be key=item things
+                            key, value = PP.split('=')
+                            dic['proc_opt']['wf'][f'{key}'] = eval(value)
+                        except:
+                            continue
+                if 'zf' in line[0]:         # Zero-filling options
+                    dic['proc_opt']['zf'] = int(eval(line[1]))
+                if 'blp' in line[0]:        # Backward linear prediction
+                    P = line[1].split(',')
+                    dic['proc_opt']['blp'] = {} # Placeholder
+                    for PP in P:    # Additional options for kz.processing.blp
+                        try:
+                            key, value = PP.split('=')
+                            dic['proc_opt']['blp'][f'{key}'] = eval(value)
+                        except:
+                            continue
+                if 'pknl' in line:          # PKNL yes or no
+                    dic['proc_opt']['pknl'] = True
+                if 'adjph' in line:         # Correct phase or not
+                    dic['proc_opt']['adjph'] = True
+
         # Path to the components
         if 'COMP_PATH' in lines[0]:
             lines.pop(0)    # Remove the header line
@@ -138,7 +171,6 @@ def read_input_file(filename):
     f.close()
     return dic
 
-
 def read_input(filename):
     """
     Reads the input file to get all the information to perform the fit.
@@ -203,6 +235,19 @@ def read_input(filename):
         if key not in dic['fit_bds'].keys():    # Replace missing entries with default values
             dic['fit_bds'][key] = def_value
 
+    # Add missing processing options with default values
+    if 'proc_opt' not in dic.keys():    # Create it
+        dic['proc_opt'] = {}
+    if 'wf' not in dic['proc_opt'].keys():  # Set "no wf" as default
+        dic['proc_opt']['wf'] = {'mode':'no'}
+    if 'zf' not in dic['proc_opt'].keys():  # Do not zerofill
+        dic['proc_opt']['zf'] = False
+    if 'blp' not in dic['proc_opt'].keys(): # Do not perform blp
+        dic['proc_opt']['blp'] = False
+    if 'pknl' not in dic['proc_opt'].keys():    # Do not apply pknl
+        dic['proc_opt']['pknl'] = False
+    if 'adjph' not in dic['proc_opt'].keys():   # Do not phase
+        dic['proc_opt']['adjph'] = False
 
     # Sort the values to be returned according to a meaningful scheme
     ret_vals = [
@@ -210,6 +255,7 @@ def read_input(filename):
             dic['mix_path'],
             dic['mix_kws'],
             dic['mix_spectrum_txt'],
+            dic['proc_opt'],
             dic['comp_path'],
             dic['fit_lims'],
             dic['fit_bds'],
@@ -218,8 +264,5 @@ def read_input(filename):
             dic['Hs'],
             ]
     return ret_vals
-
-
-
 
 

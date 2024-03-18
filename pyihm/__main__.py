@@ -35,7 +35,7 @@ else:
 for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(inp_files)} input file.\n')
-    filename, mix_path, mix_kws, mix_txtf, comp_path, lims, bds, fit_kws, plt_opt, Hs = read_input(inp_file)
+    filename, mix_path, mix_kws, mix_txtf, proc_opt, comp_path, lims, bds, fit_kws, plt_opt, Hs = read_input(inp_file)
 
 
     ## Load the mixture spectrum
@@ -43,9 +43,21 @@ for n_inp, inp_file in enumerate(inp_files):
     M = kz.Spectrum_1D(mix_path, **mix_kws)
     acqus = M.acqus
     # Do the FT
-    M.process()
-    # Replace the spectrum with one read from a text file, if told to do so
-    if mix_txtf is not None:
+    if mix_txtf is None:
+        for key, value in proc_opt['wf'].items():
+            M.procs[key] = value
+        if proc_opt['zf']:
+            M.procs['zf'] = proc_opt['zf']
+        if proc_opt['blp']:
+            M.blp(**proc_opt['blp'])
+        M.process()
+        if proc_opt['pknl']:
+            M.pknl()
+        if proc_opt['adjph']:
+            M.adjph()
+    else:
+        M.process()
+        # Replace the spectrum with one read from a text file, if told to do so
         m_spect = np.loadtxt(mix_txtf, dtype='complex128')  # Always complex
         # Overwrite the complex, real and imaginary part of the spectrum
         M.S = m_spect
