@@ -16,6 +16,8 @@ def select_regions(ppm_scale, spectrum, full_calc):
         ppm scale of the spectrum
     - spectrum: 1darray
         Spectrum of the mixture
+    - full_calc: 1darray
+        Spectrum of the initial guess, with all the peaks in total
     --------------
     Returns:
     - regions: list of tuple

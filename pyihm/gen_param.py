@@ -18,6 +18,8 @@ def as_par(name, value, lims=0, rel=True, minthresh=None):
         Determines the boundaries. If it is a tuple, the boundaries are min(lims) and max(lims). If it is a single float, the boundaries are (value-lims, value+lims). Not read if value is str
     - rel: bool
         Relative boundaries. If it is True and lims is a float, the boundaries are set to value-lims*value, value+lims*value.
+    - minthresh: float
+        If given, overwrite the minimum threshold with this value, if the calculated one is lower than it.
     ---------
     Returns:
     - p: lmfit.Parameter object
@@ -197,10 +199,12 @@ def main(M, components, bds, lims, Hs):
         List of Spectra objects
     - bds: dict
         Boundaries for the fitting parameters.
+    - lims: list of tuple
+        Borders of the fitting windows, in ppm (left, right)
+    - Hs: list
+        Number of protons each spectrum integrates for
     -----------
     Returns:
-    - Lparam: lmfit.Parameters object
-        Normalized parameters for the fit
     - param: lmfit.Parameters object
         Actual parameters for the fit
     """

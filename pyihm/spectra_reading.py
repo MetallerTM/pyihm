@@ -181,8 +181,10 @@ def main(M, spectra_dir, Hs, lims=None):
         Mixture spectrum. Used to get the spectral parameters for the kz.fit.Peak objects
     - spectra_dir: list of str
         Sequence of the locations of the .fvf files to be read
-    - lims: tuple
-        Borders of the fitting window, in ppm (left, right)
+    - Hs: list
+        Number of protons each spectrum integrates for
+    - lims: list of tuple
+        Borders of the fitting windows, in ppm (left, right)
     ----------
     Returns:
     - collections: list of Spectr objects

@@ -195,10 +195,10 @@ def read_input(filename):
         Limits of the fitting region, in ppm
     - fit_bds: dict
         Boundaries for the fitting parameters. The keywords are:
-        > utol = allowed displacement for singlets and whole multiplets, in ppm (absolute)
-        > utol_sg = allowed displacement for the peaks that are part of the same multiplet relatively to the center, in ppm (absolute)
-        > stol = allowed variation for the linewidth, in Hz (relative)
-        > ktol = allowed variation for the relative intensities within the same spectrum(relative)
+        > utol = allowed displacement for singlets and whole multiplets, in ppm 
+        > utol_sg = allowed displacement for the peaks that are part of the same multiplet relatively to the center, in ppm
+        > stol = allowed variation for the linewidth, in Hz 
+        > ktol = allowed variation for the relative intensities within the same spectrum
     """
     # Get the dictionary of parameters
     dic = read_input_file(filename)
@@ -231,7 +231,7 @@ def read_input(filename):
         dic['plt_opt']['dpi'] = int(dic['plt_opt']['dpi']) 
 
     # Double-check the boundaries of the fit
-    for key, def_value in zip(['utol', 'utol_sg', 'stol', 'ktol'], [0.2, 0.01, 0.05, 0.01]):
+    for key, def_value in zip(['utol', 'utol_sg', 'stol', 'ktol'], [0.2, 0.1, 10, 0.01]):
         if key not in dic['fit_bds'].keys():    # Replace missing entries with default values
             dic['fit_bds'][key] = def_value
 

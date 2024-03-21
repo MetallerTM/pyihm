@@ -2,4 +2,4 @@
 
 from . import input_reading, spectra_reading, gen_param, fit_mixture, plots
 
-__version__ = '0.0.1'
+__version__ = '1.0.0'

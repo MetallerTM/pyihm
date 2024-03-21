@@ -198,6 +198,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     Makes a fit with all the parameters blocked, except for the chemical shifts, on the target function of the integral.
     Used to improve the initial guess in case of misplacements of the signals.
     ----------
+    Parameters:
     - exp: 1darray
         Experimental spectrum
     - acqus: dict
@@ -278,7 +279,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq'
     - cnvg_path: str
         Path for the file where to save the convergence path
     - debug: bool
-
+        If True, saves a figurte of the ongoing fit in the current working directory every 20 iterations
     ----------
     Returns:
     - target: float or 1darray
