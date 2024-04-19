@@ -5,6 +5,7 @@ import os
 import numpy as np
 from .GUIs import select_regions
 
+
 def read_input_file(filename):
     """
     Runs over the input file, looks for specific keywords, and interpret them accordingly.
@@ -142,18 +143,20 @@ def read_input_file(filename):
 
         if 'FIT_KWS' in lines[0]:
             dic['fit_kws'] = {} # Placeholder
-            line = lines[1].split(',')  # Separates the various options
-            for kw in line:    # Loop on the parameters
-                if '=' not in kw:
-                    continue
-                # Separate the key from the actual value
-                key, item = kw.split('=')
-                # Remove the spaces from the key
-                key = key.replace(' ', '')
-                try:
-                    dic['fit_kws'][key] = eval(item)
-                except:
-                    dic['fit_kws'][key] = f'{item}'.replace(' ', '')
+            for il, l in enumerate(lines[1:]):
+                line = l.split(',')  # Separates the various options
+                dic['fit_kws'][il] = {} # Placeholder
+                for kw in line:    # Loop on the parameters
+                    if '=' not in kw:
+                        continue
+                    # Separate the key from the actual value
+                    key, item = kw.split('=')
+                    # Remove the spaces from the key
+                    key = key.replace(' ', '')
+                    try:
+                        dic['fit_kws'][il][key] = eval(item)
+                    except:
+                        dic['fit_kws'][il][key] = f'{item}'.replace(' ', '')
 
         # Options for saving the figures: format and resolution
         if 'PLT_OPTS' in lines:
@@ -211,14 +214,20 @@ def read_input(filename):
         dic['fit_lims'] = None
     if 'fit_kws' not in dic.keys():    # This is an optional parameter: parameters for the fit routine
         dic['fit_kws'] = {}
-    if 'method' not in dic['fit_kws'].keys():  # Algorithm to be used for the fit
-        dic['fit_kws']['method'] = 'leastsq'
-    if 'max_nfev' not in dic['fit_kws'].keys(): # Set default max_nfev
-        dic['fit_kws']['max_nfev'] = 10000
-    else:   # If it is set, make sure it is an integer
-        dic['fit_kws']['max_nfev'] = int(dic['fit_kws']['max_nfev'])
-    if 'tol' not in dic['fit_kws'].keys():      # Set default tolerance
-        dic['fit_kws']['tol'] = 1e-5
+    if len(dic['fit_kws'].keys()) == 0:    # If the dictionary is empty, it means that the user did not specify any parameter
+        dic['fit_kws'] = {0: {}}    # Create a dummy dictionary
+        dic['fit_kws'][0]['method'] = 'leastsq'
+        dic['fit_kws'][0]['max_nfev'] = 10000
+        dic['fit_kws'][0]['tol'] = 1e-5
+    # make sure that max_nfev is an integer
+    for key in dic['fit_kws'].keys():
+        if 'max_nfev' in dic['fit_kws'][key].keys():
+            dic['fit_kws'][key]['max_nfev'] = int(dic['fit_kws'][key]['max_nfev'])
+        if dic['fit_kws'][key]['method'] == 'leastsq':
+            if 'tol' not in dic['fit_kws'][key].keys():
+                dic['fit_kws'][key]['tol'] = 1e-5
+            if 'max_nfev' not in dic['fit_kws'][key].keys():
+                dic['fit_kws'][key]['max_nfev'] = 10000
     # Set the figures' options to .tiff 300 dpi, unless explicitely said
     if 'plt_opt' not in dic.keys():
         dic['plt_opt'] = {}

@@ -12,6 +12,7 @@ from .gen_param import main as gen_param
 from . import plots
 from . import GUIs
 
+
 def calc_spectra(param, N_spectra, acqus, N):
     """
     Computes the spectra to be used as components for the fitting procedure, in form of lists of 1darrays. Each array is the sum of all the peaks.
@@ -257,7 +258,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     return popt
 
 
-def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq', debug=False):
+def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     """
     Function to compute the quantity to be minimized by the fit.
     ----------
@@ -282,8 +283,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq'
         If True, saves a figurte of the ongoing fit in the current working directory every 20 iterations
     ----------
     Returns:
-    - target: float or 1darray
-        For Levenberg-Marquardt (method='leastsq'), array of the residuals, else \sum [ (exp - I*calc)^2 ]
+    - target: 1darray
     """
     param['count'].value += 1
     count = param['count'].value
@@ -308,10 +308,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, method='leastsq'
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
     print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
-    if method == 'leastsq':
-        return t_residual
-    else:
-        return target
+    return t_residual
 
 
 def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
@@ -508,15 +505,20 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
     # Do the fit
     @kz.cron
     def start_fit():
-        if fit_kws['method'] == 'leastsq':
-            tol = fit_kws.pop('tol')
-            fit_kws['xtol'] = tol
-            fit_kws['ftol'] = tol
-            fit_kws['gtol'] = tol
-        minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, fit_kws['method'], DEBUG_FLAG))
-        print(f'This fit has {len([key for key in param if param[key].vary])} parameters.\nStarting fit...')
-        result = minner.minimize(**fit_kws)
-        print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
+        print(f'This fit has {len([key for key in param if param[key].vary])} parameters.')
+        for idx in range(len(fit_kws.keys())):  # for each fitting round...
+            if idx == 0:
+                minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
+            if fit_kws[idx]['method'] == 'leastsq':
+                tol = fit_kws[idx].pop('tol')
+                fit_kws[idx]['xtol'] = tol
+                fit_kws[idx]['ftol'] = tol
+                fit_kws[idx]['gtol'] = tol
+            print(f'Fitting n. {idx+1} of {len(fit_kws.keys())}, method: {fit_kws[idx]["method"]}\nStarting fit...')
+            if idx != 0:
+                fit_kws[idx]['params'] = result.params
+            result = minner.minimize(**fit_kws[idx])
+            print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
         return result
     result = start_fit()
 

@@ -1,5 +1,19 @@
 #! /usr/bin/env python3
 
+'''
+To run the program, type in the terminal:
+$ python -m pyihm input_file1 input_file2 ... *flags
+
+List of flags:
+--help: Print this help message
+--debug: Print debug information
+--cal: Perform calibration of the spectrum
+--help: Print this help message
+--conv=fast: leastsq
+--conv=tight: Nelder+leastsq
+--conv=custom: from input  
+'''
+
 import sys
 import os
 import numpy as np
