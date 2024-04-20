@@ -5,13 +5,10 @@ To run the program, type in the terminal:
 $ python -m pyihm input_file1 input_file2 ... *flags
 
 List of flags:
---help: Print this help message
 --debug: Print debug information
 --cal: Perform calibration of the spectrum
---help: Print this help message
---conv=fast: leastsq
---conv=tight: Nelder+leastsq
---conv=custom: from input  
+--opt_method: Choose the type of conversion 
+--input: Input files
 '''
 
 import sys
@@ -19,6 +16,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import klassez as kz
+import argparse
 
 from .input_reading import read_input, select_regions
 from .spectra_reading import main as spectra_reading
@@ -38,23 +36,26 @@ def print_header():
 
 print_header()
 
-inp_files = sys.argv[1:]
+#inp_files = sys.argv[1:]
 
-# Get the options
-options = [w for w in inp_files if w[:2] == '--']
-for opt in options:
-    # Remove options from the list of input files
-    inp_files.pop(inp_files.index(opt))
-# Set debug flag
-if '--debug' in options:
-    DEBUG_FLAG = True
-else:
-    DEBUG_FLAG = False
-# Set calibration flag
-if '--cal' in options:
-    CAL_FLAG = True
-else:
-    CAL_FLAG = False
+## Parse the flags
+# Create the parser
+parser = argparse.ArgumentParser(description='Your program description')
+
+# Add the arguments
+parser.add_argument('--input', nargs='+', help='Input files')
+parser.add_argument('--debug', action='store_true', help='Print debug information')
+parser.add_argument('--cal', action='store_true', help='Perform calibration of the spectrum')
+parser.add_argument('--opt_method', choices=['fast', 'tight', 'custom'], help='Choose the type of conversion')
+
+# Parse the arguments
+args = parser.parse_args()
+
+# Now you can access your options as attributes of args
+DEBUG_FLAG = args.debug
+CAL_FLAG = args.cal
+METHOD_FLAG = args.opt_method
+inp_files = args.input  # Access the input files through argparse
 
 for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
@@ -128,7 +129,7 @@ for n_inp, inp_file in enumerate(inp_files):
         components.pop(components.index('Q'))
         
     # Do the fit and save figures and output file
-    do_fit(M, len(components), Hs, param, lims, fit_kws, filename, CAL_FLAG, DEBUG_FLAG, **plt_opt)
+    do_fit(M, len(components), Hs, param, lims, fit_kws, filename, CAL_FLAG, DEBUG_FLAG, METHOD_FLAG, **plt_opt)
 
     print('*'*80)
 

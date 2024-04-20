@@ -388,7 +388,7 @@ def save_data(filename, ppm_scale, exp, *opt_spectra):
 
         
 
-def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLAG=False, DEBUG_FLAG=False, ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLAG=False, DEBUG_FLAG=False, METHOD_FLAG='fast', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -419,6 +419,8 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
         True for adjusting the initial guess before starting the fit
     - DEBUG_FLAG: bool
         True for saving a figure of the ongoing fit every 20 iterations
+    - METHOD_FLAG: str
+        Method to be used for the fit. Can be 'fast', 'tight', 'custom'
     - ext: str
         Format of the figures
     - dpi: int
@@ -504,23 +506,40 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
 
     # Do the fit
     @kz.cron
-    def start_fit():
+    def start_fit(flag):
         print(f'This fit has {len([key for key in param if param[key].vary])} parameters.')
-        for idx in range(len(fit_kws.keys())):  # for each fitting round...
-            if idx == 0:
-                minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
-            if fit_kws[idx]['method'] == 'leastsq':
-                tol = fit_kws[idx].pop('tol')
-                fit_kws[idx]['xtol'] = tol
-                fit_kws[idx]['ftol'] = tol
-                fit_kws[idx]['gtol'] = tol
-            print(f'Fitting n. {idx+1} of {len(fit_kws.keys())}, method: {fit_kws[idx]["method"]}\nStarting fit...')
-            if idx != 0:
-                fit_kws[idx]['params'] = result.params
-            result = minner.minimize(**fit_kws[idx])
+        if flag == 'fast':
+            print('Default fitting method: fast')
+            minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
+            print(f'Fitting n. 1 of 1, method: leastsq\nStarting fit...')
+            result = minner.minimize(method='leastsq', max_nfev=5000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
             print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
+        elif flag == 'tight':
+            print('Default fitting method: tight')
+            minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
+            print(f'Fitting n. 1 of 2, method: Nelder\nStarting fit...')
+            result = minner.minimize(method='Nelder', max_nfev=50000)
+            print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
+            params = result.params
+            print(f'Fitting n. 2 of 2, method: leastsq\nStarting fit...')
+            result = minner.minimize(method='leastsq', params=params, max_nfev=50000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+            print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
+        elif flag == 'custom':
+            for idx in range(len(fit_kws.keys())):  # for each fitting round...
+                if idx == 0:
+                    minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
+                if fit_kws[idx]['method'] == 'leastsq':
+                    tol = fit_kws[idx].pop('tol')
+                    fit_kws[idx]['xtol'] = tol
+                    fit_kws[idx]['ftol'] = tol
+                    fit_kws[idx]['gtol'] = tol
+                print(f'Fitting n. {idx+1} of {len(fit_kws.keys())}, method: {fit_kws[idx]["method"]}\nStarting fit...')
+                if idx != 0:
+                    fit_kws[idx]['params'] = result.params
+                result = minner.minimize(**fit_kws[idx])
+                print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
         return result
-    result = start_fit()
+    result = start_fit(METHOD_FLAG)
 
     # Get the optimized parameters
     popt = result.params
