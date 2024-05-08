@@ -518,11 +518,11 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
             print('Default fitting method: tight')
             minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
             print(f'Fitting n. 1 of 2, method: Nelder\nStarting fit...')
-            result = minner.minimize(method='Nelder', max_nfev=50000)
+            result = minner.minimize(method='Nelder', max_nfev=10000)
             print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
             params = result.params
             print(f'Fitting n. 2 of 2, method: leastsq\nStarting fit...')
-            result = minner.minimize(method='leastsq', params=params, max_nfev=50000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+            result = minner.minimize(method='leastsq', params=params, max_nfev=10000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
             print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
         elif flag == 'custom':
             for idx in range(len(fit_kws.keys())):  # for each fitting round...
@@ -599,7 +599,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
             X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
-    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-result'), M.ppm, M.r, *[I*y for y in algn_spectra])
+    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-result'), M.ppm, M.r, *[I*y for y in opt_spectra])
     print('Done.\n')
 
 
