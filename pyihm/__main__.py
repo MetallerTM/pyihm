@@ -2,7 +2,7 @@
 
 '''
 To run the program, type in the terminal:
-$ python -m pyihm input_file1 input_file2 ... *flags
+$ python -m pyihm --input input_file1 input_file2 ... *flags
 
 List of flags:
 --debug: Print debug information
@@ -36,25 +36,27 @@ def print_header():
 
 print_header()
 
-#inp_files = sys.argv[1:]
-
 ## Parse the flags
-# Create the parser
-parser = argparse.ArgumentParser(description='Your program description')
+#   Create the parser
+parser = argparse.ArgumentParser(description='This program performs an Indirect Hard Modelling analysis on your spectra. For detailed info, please refer to the user manual in the "docs" folder of the GitHub repository: https://github.com/MetallerTM/pyihm')
 
-# Add the arguments
-parser.add_argument('--input', nargs='+', help='Input files')
-parser.add_argument('--debug', action='store_true', help='Print debug information')
-parser.add_argument('--cal', action='store_true', help='Perform calibration of the spectrum')
-parser.add_argument('--opt_method', choices=['fast', 'tight', 'custom'], help='Choose the type of conversion')
+#   Add the arguments
+parser.add_argument('--input', nargs='+', help='Paths to input files')
+parser.add_argument('--debug', action='store_true', help='Save figures of the ongoing fit every 20 iterations')
+parser.add_argument('--cal', action='store_true', help='Perform calibration of the components before to start optimizations')
+parser.add_argument('--opt_method', choices=['tight', 'fast', 'custom'], help='Choose the type of optimization for the core fit. DEFAULT: tight')
 
-# Parse the arguments
+#   Parse the arguments
 args = parser.parse_args()
 
-# Now you can access your options as attributes of args
+#   Access your options as attributes of args
 DEBUG_FLAG = args.debug
 CAL_FLAG = args.cal
 METHOD_FLAG = args.opt_method
+
+#   Set 'tight' as default optimization method
+if METHOD_FLAG is None:
+    METHOD_FLAG = 'tight'
 inp_files = args.input  # Access the input files through argparse
 
 for n_inp, inp_file in enumerate(inp_files):
