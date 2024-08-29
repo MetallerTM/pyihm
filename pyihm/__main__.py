@@ -107,6 +107,17 @@ for n_inp, inp_file in enumerate(inp_files):
     M.ppm = kz.misc.freq2ppm(M.freq, acqus['SFO1'], acqus['o1p'])
     print(f'{os.path.join(M.datadir, M.filename)} successfully loaded.\n')
 
+    #%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    # TODO calibrazione
+    
+    tmp_components, *_ = spectra_reading(M, comp_path, Hs, [(max(M.ppm), min(M.ppm))])
+    tmp_param = gen_param(M, tmp_components, bds, [(max(M.ppm), min(M.ppm))], Hs)
+    I = processing.integrate(M.r, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
+    cal_param, drifts, Icorr = GUIs.cal_gui(M.ppm, M.r, tmp_param, len(components), M.acqus, M.r.shape[-1], I)
+
+    ##########################################################
+
     # Sort the ppm limits so they appear always in the correct order
     if lims is None:    # Select them interactively
         tmp_Hs = list(Hs)
@@ -119,7 +130,11 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')
-    components, Hs, missing = spectra_reading(M, comp_path, Hs, lims)
+    tmp_components, *_ = spectra_reading(M, comp_path, Hs, [(max(M.ppm), min(M.ppm))])
+    tmp_param = gen_param(M, tmp_components, bds, [(max(M.ppm), min(M.ppm))], Hs)
+    if CAL_FLAG:
+        I = processing.integrate(M.r, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
+        param = GUIs.cal_gui(M.ppm, M.r, param, N_spectra, M.acqus, len(components), I)
     print(f'Done. {len(components)-len(missing)} spectra will be employed in the fit.\n')
 
     ## Create the parameters using lmfit
@@ -130,6 +145,7 @@ for n_inp, inp_file in enumerate(inp_files):
     while 'Q' in components:
         components.pop(components.index('Q'))
         
+    #########################################################
     # Do the fit and save figures and output file
     do_fit(M, len(components), Hs, param, lims, fit_kws, filename, CAL_FLAG, DEBUG_FLAG, METHOD_FLAG, **plt_opt)
 

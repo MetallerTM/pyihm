@@ -168,6 +168,15 @@ class Spectr:
         total = I * self.calc_total()
         return total
 
+    def drift(self, val):
+        """
+        """
+        peaks = [item for _, item in self.peaks.items()]
+        for peak in peaks:
+            peak.u += val
+        self.__init__(self, self.acqus, *peaks)
+
+
 
 def main(M, spectra_dir, Hs, lims=None):
     """
@@ -212,7 +221,7 @@ def main(M, spectra_dir, Hs, lims=None):
         whole_spectrum = []   # Create empty list of components
         total_I = 0
         for region_peaks in all_peaks:      # Unpack the peaks in a given region
-            # Remove total intensity and fitting window
+Mandato            # Remove total intensity and fitting window
             I = region_peaks.pop('I')
             total_I += I
             region_peaks.pop('limits')

@@ -440,4 +440,4 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
             if f'S{k+1}_' in p and ('U' in p or 'u' in p):  # Chemical shifts
                 param[p].value += drifts[k]
 
-    return param
+    return param, drifts, Icorr
