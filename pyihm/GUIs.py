@@ -280,7 +280,7 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
         """ Roll the active spectrum and updates the values """
         nonlocal i_spectra, roll_n
         # the minus is because increasing the chemical shift should roll towards left
-        i_spectra[act] = np.roll(I_s[act] * i_spectra[act], -sign*sens_n)
+        i_spectra[act] = np.roll(i_spectra[act], -sign*sens_n)
         y_lines[act].set_ydata(i_spectra[act])
         roll_n[act] += sign*sens_n  # But here it is of the correct sign, +
         plt.draw()
@@ -289,7 +289,8 @@ def cal_gui(ppm_scale, exp, param, N_spectra, acqus, N, I):
         """ Adjust the intensity of the active spectrum and updates the values """
         nonlocal I_s
         I_s[act] += sign*sens_I
-        y_lines[act].set_ydata(I_s[act]*i_spectra[act])
+        i_spectra[act] = I_s[act]*i_spectra[act]
+        y_lines[act].set_ydata(i_spectra[act])
         plt.draw()
 
     def mouse_scroll(event):
