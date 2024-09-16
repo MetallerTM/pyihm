@@ -1,7 +1,10 @@
 #! /usr/bin/env python3
 
+import os
 import numpy as np
 import klassez as kz
+
+from . import GUIs
 
 class Multiplet:
     """
@@ -169,7 +172,76 @@ class Spectr:
         return total
 
 
-def main(M, spectra_dir, Hs, lims=None):
+def get_component_spectrum(filename, acqus, return_dict=True, N=None, norm=True):
+    """
+    Reads a .ivf or .fvf file, and builds a dictionary of kz.fit.Peak objects with the information therein. Then, depending on return_dict, this function either returns it as is, or sums them up together to obtain the spectrum as array.
+    ------------------
+    Parameters:
+    - filename: str
+        Path to the .ivf or .fvf file
+    - acqus: dict
+        Dictionary of acquisition parameters.
+    - return_dict: bool
+        If True, returns the dictionary of kz.fit.Peak objects. If False, returns the computed spectrum as 1darray.
+    - N: int or None
+        Total number of points of the spectrum. If None, the length of the acqusition timescale is used.
+    - norm: bool or float
+        If True, all the peak intensities sum up to 1. If it is a number, the intensities sum up to that number. If False, they sum up to the intensity written in the .vf file
+    ------------------
+    Returns:
+    if return_dict is True:
+    - dic_Peaks: dict
+        Dictionary of kz.fit.Peak parameters
+    - I: float
+        Total intensity 
+    else:
+    - total: 1darray
+        Computed spectrum
+    - I: float
+        Total intensity 
+    """
+    # Compute N if not given
+    if N is None:
+        N = acqus['t1'].shape[-1]
+    # Get the peak parameters as a list of dictionaries
+    regions = kz.fit.read_vf(filename)
+    I = 0
+    for region in regions:
+        # Remove the 'limits' entry from each region because it is useless and it would raise an error
+        region.pop('limits')
+        I += region.pop('I')
+    # Join all regions together
+    dic_peaks = kz.misc.merge_dict(*regions)
+
+    # transform dic_peaks in a list of Peak objects
+    dic_Peaks = {key: kz.fit.Peak(acqus, N=N, **p_par) for key, p_par in dic_peaks.items()}
+    # Add the idx parameter
+    for key, peak in dic_Peaks.items():
+        peak.idx = key
+    if isinstance(norm, bool):
+        if norm is True:
+            K = [peak.k for _, peak in dic_Peaks.items()]
+            X, Icorr = kz.misc.molfrac(K)
+            for k, key in enumerate(dic_Peaks.keys()):
+                dic_Peaks[key].k = X[k]
+            I *= Icorr
+    elif isinstance(norm, (int, float)):
+        K = [peak.k for _, peak in dic_Peaks.items()]
+        X, Icorr = kz.misc.molfrac(K)
+        for k, key in enumerate(dic_Peaks.keys()):
+            dic_Peaks[key].k = X[k] * norm
+        I *= Icorr / norm
+
+    if return_dict is True:
+        # return the dictionary of Peak objects
+        return dic_Peaks, I
+    else:
+        # Compute the spectrum and return the array
+        total = np.sum([peak() for _, peak in dic_Peaks.items()], axis=0)
+        return total, I
+
+
+def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
     """
     Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
     Then, computes a list of Spectr objects with those parameters, and returns it.
@@ -185,10 +257,16 @@ def main(M, spectra_dir, Hs, lims=None):
         Number of protons each spectrum integrates for
     - lims: list of tuple
         Borders of the fitting windows, in ppm (left, right)
+    - cal_flag: bool
+        If True, opens the optimization of the initial guess through GUI
     ----------
     Returns:
-    - collections: list of Spectr objects
-        Spectra of pure components, treated as collections of peaks.
+    - dioporco
+        quello stronzo di dio
+    - madonna_troia
+        La su mamma puttana
+    - sg
+        Il su babbo cornuto
     """
     def is_in(x, Bs):
         """ Check if the chemical shift is inside one of the fitting intervals """
@@ -204,60 +282,129 @@ def main(M, spectra_dir, Hs, lims=None):
     # Get "structural" parameters from M
     acqus = dict(M.acqus)
     N = M.r.shape[-1]       # Number of points for zero-filling
-    ## Gather all the peaks
-    components = [] # Whole spectra
-    # Collect the parameters of the peaks
-    spectra_peaks = [kz.fit.read_vf(file) for file in spectra_dir]
-    for j, all_peaks in enumerate(spectra_peaks): # Unpacks the fitting regions
-        whole_spectrum = []   # Create empty list of components
-        total_I = 0
-        for region_peaks in all_peaks:      # Unpack the peaks in a given region
-            # Remove total intensity and fitting window
-            I = region_peaks.pop('I')
-            total_I += I
-            region_peaks.pop('limits')
-            peaks = []      # Empty list
-            for key in sorted(region_peaks.keys()): # Iterate on the peak index
-                p = dict(region_peaks[key]) # Alias, shortcut
-                if is_in(p['u'], lims): # Add only the peaks whose chemical shift is inside the fitting window
-                    # Create the kz.fit.Peak object and append it to the peaks list. Use the ABSOLUTE intensities in order to not mess up with different windows!
-                    peaks.append(kz.fit.Peak(acqus, u=p['u'], fwhm=p['fwhm'], k=I*p['k'], x_g=p['x_g'], phi=0, N=N, group=p['group']))
-                    # Add the peak index as "floating" attribute
-                    peaks[-1].idx = key
+
+    cal_file_flag = None
+    for k, filename in enumerate(spectra_dir):
+        # <filename>.fvf becomes <filename>-cal.fvf
+        base_name, extension = filename.rsplit('.', 1)
+        new_filename = base_name + '-cal.' + extension
+        if os.path.isfile(new_filename):
+            if cal_file_flag is None:
+                print(f'{base_name}-cal.{extension} file found. Do you want to load it instead?')
+                load_cal = input('[yes]/no/all > ')
+                if load_cal.isspace() or 'y' in load_cal.lower():
+                    pass
+                elif 'a' in load_cal.lower():
+                    cal_file_flag = True
                 else:
                     continue
-            # Once all the peaks in a given region have been generated, store them in the list 
-            whole_spectrum.extend(peaks)
+            spectra_dir[k] = new_filename
 
-        ## Normalize the intensity values
-        # Get the absolute values
-        K_vals = [p.par()['k'] for p in whole_spectrum]
-        # Normalize them
-        K_norm, only_I = kz.misc.molfrac(K_vals)
-        # Correct nuclei count
-        Hs[j] = round(Hs[j] * only_I / total_I)
-        # Put the new ones
-        for p, k in zip(whole_spectrum, K_norm):
-            p.k = Hs[j] * k 
+    # List of dictionary of kz.fit.Peak objects
+    comp_peaks = [get_component_spectrum(file, acqus, True, norm=Hs[k], N=M.r.shape[-1])[0] for k, file in enumerate(spectra_dir)]
+    # List of 1darrays (one per spectrum)
+    components = [get_component_spectrum(file, acqus, False, norm=Hs[k], N=M.r.shape[-1])[0] for k, file in enumerate(spectra_dir)]
+    exit_code = True    # Placeholder
+    # Compute intensity
+    I = kz.processing.integrate(M.r, x=M.freq) / (acqus['SW']/2) /np.sum(Hs)
+    # Compute initial guess for concentrations
+    Icorr = [1. for k in range(len(components))]
 
-        # At the end, generate the Spectr object and add it to a list
-        if len(whole_spectrum):
-            components.append(Spectr(acqus, *whole_spectrum))
+    if cal_flag:
+        while exit_code:        # Loop over two functions
+            # Try to perform drift and intensity adjustments
+            exit_code, drifts, Icorr = GUIs.cal_gui(M.r, M.ppm, components, I, Icorr)
+            # Apply drift corrections to the peaks
+            for k, ucorr in enumerate(drifts):
+                for _, peak in comp_peaks[k].items():
+                    peak.u += ucorr
+            if exit_code == 0:  # You pressed the "save" button
+                break
+            else:   # You pressed the "edit" button
+                idx = exit_code - 1     # Spectrum to edit peak-by-peak
+
+            # Make a shallow copy
+            peaks = deepcopy(comp_peaks[idx])
+            # All spectra except the one to edit
+            offset = np.sum([y for k, y in enumerate(components) if k != idx], axis=0)
+
+            # Make correction
+            comp_peaks[idx], Acorr = GUIs.edit_gui(M.r, M.ppm, peaks, acqus['t1'], acqus['SFO1'], acqus['o1p'], offset=offset, I=I, A=Icorr[idx])
+            # Make the correct integral of the spectrum
+            for _, peak in comp_peaks[idx].items():
+                peak.k *= Hs[idx]
+            # Compute again the dictionary of kz.fit.Peak objects with the new parameters
+            components = [np.sum([peak() for _, peak in dic_Peaks.items()], axis = 0) for dic_Peaks in comp_peaks]
+            # Apply correction to the intensity
+            Icorr[idx] = Icorr[idx] * Acorr
+            
+        # Check the match between integral and number of protons
+        for k, comp in enumerate(comp_peaks):
+            K_vals = [peak.k for _, peak in comp.items()]
+            X, J = kz.misc.molfrac(K_vals)
+            Hs[k] = int(round(J))
+
+        # Write a new .fvf file for the calibrated components
+        tmp_lims = max(M.ppm), min(M.ppm)   # Dummy limits
+        for k, filename in enumerate(spectra_dir):
+            # <filename>.fvf becomes <filename>-cal.fvf
+            base_name, extension = filename.rsplit('.', 1)
+            new_filename = base_name + '-cal.' + extension
+            # If the -cal.fvf file already exists, do not create -cal-cal.fvf file
+            if os.path.isfile(new_filename):
+                new_filename = filename
+            # Write the new fvf file
+            kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, Hs[k])
+        if filename == new_filename:
+            print('Calibrated version of the .fvf files updated.')
         else:
-            components.append('Q')
+            print('Calibrated version of the .fvf files saved.')
 
+    # Select regions for performing the fit
+    if lims is None:
+        components = [np.sum([peak() for _, peak in dic_Peaks.items()], axis = 0) for dic_Peaks in comp_peaks]
+        full_calc = np.sum([i*c for i, c in zip(Icorr, components)], axis=0)
+        lims = GUIs.select_regions(M.ppm, M.r, full_calc)
+        text_to_append = '\n'.join([f'{max(X):-7.3f}, {min(X):-7.3f}' for X in lims])
+        print('Append the following text to your input file:\n\nFIT_LIMITS\n'+text_to_append+'\n')
+        lims = [(max(X), min(X)) for X in lims]
+
+    # Make the Spectr objects with only the peaks inside the regions
+    comp_peaks_in = [{} for k, _ in enumerate(comp_peaks)]
+    components = []
+    for k, dic_Peaks in enumerate(comp_peaks):
+        for key, peak in dic_Peaks.items():
+            if is_in(peak.u, lims):
+                peak.idx = key
+                comp_peaks_in[k][key] = peak
+        if len(comp_peaks_in[k]) == 0:
+            components.append('Q')
+        else:
+            components.append(Spectr(acqus, *[peak for _, peak in comp_peaks_in[k].items()]))
+
+        # Correct Hs
+        Hs_in = np.sum([peak.k for _, peak in comp_peaks_in[k].items()])
+        Hs[k] = round(Hs_in)
+
+    # Spectra that do not have peaks in the selected range
     def find_indices(list_to_check, item_to_find):
         return [idx for idx, value in enumerate(list_to_check) if value == item_to_find]
-    missing = find_indices(components, 'Q')
+    missing = find_indices(Hs, 0)
+    # Remove them one by one
     if len(missing):
-        for j in missing:
-            Hs[j] = 'Q'
-        while 'Q' in Hs:
-            Hs.pop(Hs.index('Q'))
+        I0 = [Icorr[k] for k, _ in enumerate(Hs) if k not in missing]
+        while 0 in Hs:
+            Hs.pop(Hs.index(0))
+            components.pop(components.index('Q'))
         
+        # Prompt message
         if len(missing) == 1:
             print(f'Component {", ".join([str(w+1) for w in missing])} has no peaks in the selected range.')
         else:
             print(f'Components {", ".join([str(w+1) for w in missing])} have no peaks in the selected range.')
-    
-    return components, Hs, missing
+    else:
+        I0 = list(Icorr)
+
+    return components, Hs, I0, lims
+
+

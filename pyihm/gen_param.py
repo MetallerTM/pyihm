@@ -188,7 +188,7 @@ def multiplet2par(item, spect, group, bds):
     return p
 
 
-def main(M, components, bds, lims, Hs):
+def main(M, components, bds, lims, Hs, I0=None):
     """
     Create the lmfit.Parameters objects needed for the fitting procedure.
     -----------
@@ -208,11 +208,12 @@ def main(M, components, bds, lims, Hs):
     - param: lmfit.Parameters object
         Actual parameters for the fit
     """
-
     # Get acqus and the spectra as collection of peaks
     acqus = dict(M.acqus)
     N = M.r.shape[-1]
     N_spectra = len([w for w in components if w != 'Q']) # Number of spectra
+    if I0 is None:
+        I0 = [1. for k in range(N_spectra)]
 
     # Create the parameter object
     param = l.Parameters()
@@ -220,7 +221,7 @@ def main(M, components, bds, lims, Hs):
         if S == 'Q':
             continue
         # Intensity
-        param.add(as_par(f'S{k+1}_I', 1, (0, np.sum(Hs))))
+        param.add(as_par(f'S{k+1}_I', I0[k], (0, np.sum(Hs))))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!

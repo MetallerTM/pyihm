@@ -388,7 +388,7 @@ def save_data(filename, ppm_scale, exp, *opt_spectra):
 
         
 
-def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLAG=False, DEBUG_FLAG=False, METHOD_FLAG='fast', ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_FLAG=False, METHOD_FLAG='fast', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -415,8 +415,6 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
         Additional parameters for the lmfit.Minimizer.minimize function
     - filename: str
         Root of the names for the names of the files that will be saved.
-    - CAL_FLAG: bool
-        True for adjusting the initial guess before starting the fit
     - DEBUG_FLAG: bool
         True for saving a figure of the ongoing fit every 20 iterations
     - METHOD_FLAG: str
@@ -470,10 +468,6 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', CAL_FLA
     # Save the data in a .csv file
     save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-iguess'), M.ppm, M.r, *[I*y for y in i_spectra])
     print('Done.\n')
-
-    # Adjust initial guess
-    if CAL_FLAG:
-        param = GUIs.cal_gui(M.ppm, exp, param, N_spectra, acqus, N, I)
 
     # Align the chemical shifts
     param = pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG)
