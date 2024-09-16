@@ -2,7 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Button, SpanSelector, RadioButtons, Slider
+from matplotlib.widgets import Button, SpanSelector, RadioButtons, Slider, TextBox
 import klassez as kz
 from copy import deepcopy
 
@@ -310,7 +310,8 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
         nonlocal components
         components[act] = I_s[act]*np.roll(_components[act], -roll_n[act])
         y_lines[act].set_ydata(components[act])
-        total = np.sum([i*y for i, y in zip(I_s, components)], axis=0)
+        total = np.sum(components, axis=0)
+        #total = np.sum([y for i, y in zip(I_s, components)], axis=0)
         total_line.set_ydata(total)
         plt.draw()
 
