@@ -3,6 +3,7 @@
 import os
 import numpy as np
 import klassez as kz
+from copy import deepcopy
 
 from . import GUIs
 
