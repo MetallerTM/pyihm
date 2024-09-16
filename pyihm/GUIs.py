@@ -286,9 +286,11 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
         for k, line in enumerate(y_lines):
             if k == act:
                 line.set_color('tab:red')
+                line.set_lw(2)
                 line.set_zorder(10)
             else:
                 line.set_color('tab:blue')
+                line.set_lw(0.8)
                 line.set_zorder(3)
         plt.draw()
 
@@ -442,6 +444,7 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
         y_lines.append(line)
     # First one set as active
     y_lines[0].set_color('tab:red')
+    y_lines[0].set_lw(2)
     y_lines[0].set_zorder(10)
     total_line, = ax.plot(ppm_scale, np.sum([i*y for i, y in zip(I_s, components)], axis=0), c='b', lw=0.4, zorder=2)
     total_line.set_visible(False)
@@ -629,8 +632,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
     save_box = plt.axes([0.7, 0.825, 0.085, 0.04])      # Save button
     reset_box = plt.axes([0.7, 0.865, 0.085, 0.04])     # Reset button
     group_box = plt.axes([0.76, 0.40, 0.06, 0.04])      # Textbox for the group selection
-    #plus_box = plt.axes([0.894, 0.65, 0.08, 0.075])     # Add button
-    #minus_box = plt.axes([0.894, 0.55, 0.08, 0.075])    # Minus button
+    plus_box = plt.axes([0.894, 0.65, 0.08, 0.075])     # Add button
+    minus_box = plt.axes([0.894, 0.55, 0.08, 0.075])    # Minus button
     
     # Make widgets
     #   Buttons
@@ -638,8 +641,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
     down_button = Button(down_box, r'$\downarrow$', hovercolor = '0.975')
     save_button = Button(save_box, 'SAVE', hovercolor = '0.975')
     reset_button = Button(reset_box, 'RESET', hovercolor = '0.975')
-    #plus_button = Button(plus_box, '$+$', hovercolor='0.975')
-    #minus_button = Button(minus_box, '$-$', hovercolor='0.975')
+    plus_button = Button(plus_box, '$+$', hovercolor='0.975')
+    minus_button = Button(minus_box, '$-$', hovercolor='0.975')
 
     #   Textbox
     group_tb = TextBox(group_box, 'Group', textalignment='center')
@@ -950,8 +953,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
     _ylim = ax.get_ylim()
 
     # Connect the widgets to their slots
-    #plus_button.on_clicked(add_peak)
-    #minus_button.on_clicked(remove_peak)
+    plus_button.on_clicked(add_peak)
+    minus_button.on_clicked(remove_peak)
     up_button.on_clicked(up_sens)
     down_button.on_clicked(down_sens)
     slider.on_changed(selector)
