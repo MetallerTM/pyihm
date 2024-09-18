@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import klassez as kz
 
 
-def plot_iguess(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600):
+def plot_iguess(ppm_scale, exp, total, components, lims=None, plims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600):
     """
     Makes the figure of the initial guess and saves it.
     -----------
@@ -46,13 +46,30 @@ def plot_iguess(ppm_scale, exp, total, components, lims=None, X_label=r'$\delta$
         trace = kz.figures.ax1D(ax, ppm_scale, component, lw=0.5, c=kz.COLORS[k+1], label=f'Comp. {k+1}')
         trace.set_linestyle('--')
 
+    # Compute the residual and an offset to make it appear below the baseline of the spectra
+    total = np.sum(components, axis=0)
+    residuals = exp - total
+    res_offset = 0.05 * (max(total)-min(total))
+    # Plot it as a set of dots
+    if plims:
+        for k, X in enumerate(plims):
+            r_plot = kz.figures.ax1D(ax, ppm_scale[X], residuals[X]-res_offset, c='tab:green', lw=0.7, label=k*'_'+'Residuals')
+            r_plot.set(
+                    ls='-',
+                    marker='.',
+                    markersize=0.6,
+                    markeredgewidth=0.6,
+                    fillstyle='full',
+                    )
+    
+
     # Adjust the x-scale according to lims
     if lims is None:
         kz.misc.pretty_scale(ax, (max(ppm_scale), min(ppm_scale)), axis='x')
     else:
         kz.misc.pretty_scale(ax, (max(lims), min(lims)), axis='x')
     # Adjust the y-scale
-    kz.misc.pretty_scale(ax, kz.misc.get_ylim([total, exp]), axis='y')
+    kz.misc.pretty_scale(ax, kz.misc.get_ylim([exp, total, residuals-res_offset]), axis='y')
     # Set the label to the axes
     ax.set_xlabel(X_label)
     ax.set_ylabel('Intensity /a.u.')

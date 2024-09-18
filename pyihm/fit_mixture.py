@@ -458,12 +458,12 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    I = kz.processing.integrate(exp_T, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
+    I = kz.processing.integrate(exp, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
 
     # Plot the initial guess
     print('Saving figure of the initial guess...')
-    plots.plot_iguess(M.ppm, exp, I*i_total, [I*s for s in i_spectra], 
-            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+    plots.plot_iguess(M.ppm, exp/I, i_total, [s for s in i_spectra], 
+            lims=(np.max(np.array(lims)), np.min(np.array(lims))), plims=plims, 
             X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
     # Save the data in a .csv file
     save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-iguess'), M.ppm, M.r, *[I*y for y in i_spectra])
@@ -481,7 +481,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     algn_total = np.sum(algn_spectra, axis=0)
 
     print('Saving figures...')
-    plots.plot_output(M.ppm, exp, I*algn_total, [I*s for s in algn_spectra], 
+    plots.plot_output(M.ppm, exp/I, algn_total, [s for s in algn_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
             X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}-algn'), ext=ext, dpi=dpi)
@@ -589,7 +589,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
 
     # Make the figures
     print('Saving figures...')
-    plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], 
+    plots.plot_output(M.ppm, exp/I, opt_total, [s for s in opt_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
             X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
