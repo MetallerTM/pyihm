@@ -45,6 +45,7 @@ parser.add_argument('--input', nargs='+', help='Paths to input files')
 parser.add_argument('--debug', action='store_true', help='Save figures of the ongoing fit every 20 iterations')
 parser.add_argument('--cal', action='store_true', help='Perform calibration of the components before to start optimizations')
 parser.add_argument('--opt_method', choices=['tight', 'fast', 'custom'], help='Choose the type of optimization for the core fit. DEFAULT: tight')
+parser.add_argument('--rav', action='store_true', help='The GUIs will be drawn with a colorblind palette')
 
 #   Parse the arguments
 args = parser.parse_args()
@@ -53,6 +54,7 @@ args = parser.parse_args()
 DEBUG_FLAG = args.debug
 CAL_FLAG = args.cal
 METHOD_FLAG = args.opt_method
+RAV_FLAG = args.rav
 
 #   Set 'tight' as default optimization method
 if METHOD_FLAG is None:
@@ -110,7 +112,7 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')
-    components, Hs, I0, lims = spectra_reading(M, comp_path, Hs, lims, CAL_FLAG)
+    components, Hs, I0, lims = spectra_reading(M, comp_path, Hs, lims, CAL_FLAG, RAV_FLAG)
     print(f'Done. {len(components)} spectra will be employed in the fit.\n')
 
     ## Create the parameters using lmfit

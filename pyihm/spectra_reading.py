@@ -242,7 +242,7 @@ def get_component_spectrum(filename, acqus, return_dict=True, N=None, norm=True)
         return total, I
 
 
-def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
+def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     """
     Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
     Then, computes a list of Spectr objects with those parameters, and returns it.
@@ -260,6 +260,8 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
         Borders of the fitting windows, in ppm (left, right)
     - cal_flag: bool
         If True, opens the optimization of the initial guess through GUI
+    - rav_flag: bool
+        If True, the GUIs will be drawn in colorblind palette
     ----------
     Returns:
     - dioporco
@@ -283,6 +285,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
     # Get "structural" parameters from M
     acqus = dict(M.acqus)
     N = M.r.shape[-1]       # Number of points for zero-filling
+    _spectra_dir = deepcopy(spectra_dir)
 
     cal_file_flag = None
     for k, filename in enumerate(spectra_dir):
@@ -314,7 +317,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
     if cal_flag:
         while exit_code:        # Loop over two functions
             # Try to perform drift and intensity adjustments
-            exit_code, drifts, Icorr = GUIs.cal_gui(M.r, M.ppm, components, I, Icorr)
+            exit_code, drifts, Icorr = GUIs.cal_gui(M.r, M.ppm, components, I, Icorr, rav_flag)
             # Apply drift corrections to the peaks
             for k, ucorr in enumerate(drifts):
                 for _, peak in comp_peaks[k].items():
@@ -330,7 +333,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
             offset = np.sum([y for k, y in enumerate(components) if k != idx], axis=0)
 
             # Make correction
-            comp_peaks[idx], Acorr = GUIs.edit_gui(M.r, M.ppm, peaks, acqus['t1'], acqus['SFO1'], acqus['o1p'], offset=offset, I=I, A=Icorr[idx])
+            comp_peaks[idx], Acorr = GUIs.edit_gui(M.r, M.ppm, peaks, acqus['t1'], acqus['SFO1'], acqus['o1p'], offset=offset, I=I, A=Icorr[idx], rav_flag=rav_flag)
             # Make the correct integral of the spectrum
             for _, peak in comp_peaks[idx].items():
                 peak.k *= Hs[idx]
@@ -347,7 +350,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False):
 
         # Write a new .fvf file for the calibrated components
         tmp_lims = max(M.ppm), min(M.ppm)   # Dummy limits
-        for k, filename in enumerate(spectra_dir):
+        for k, filename in enumerate(_spectra_dir):
             # <filename>.fvf becomes <filename>-cal.fvf
             base_name, extension = filename.rsplit('.', 1)
             new_filename = base_name + '-cal.' + extension

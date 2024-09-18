@@ -202,7 +202,7 @@ def select_regions(ppm_scale, spectrum, full_calc):
     return regions
 
 
-def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
+def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
     """
     Corrects the chemical shifts and the intensities of the spectra to be employed during the fit.
     Works together with edit_gui, that allows to break up a spectrum in single components in order to adjust them.
@@ -227,6 +227,13 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
     return exit_code, drifts, Icorr
     """
     # Initialize variables and resets
+    if rav_flag:
+        v_l = kz.misc.cmap2list(kz.CM['viridis'], N=10, start=0, end=1)
+        colors = {'exp': v_l[2], 'act': v_l[7], 'nonact':v_l[0], 'total':'m'}
+    else:
+        colors = {'exp': 'k', 'act':'tab:red', 'nonact':'tab:blue', 'total':'b'}
+
+
     _components = deepcopy(components)          # backup
     N_spectra = len(components)                 # Number of spectra
     comp_idx = [w+1 for w in range(N_spectra)]  # Indices of the spectra as 1, 2, 3...
@@ -285,11 +292,11 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
         # act = index of the active spectrum
         for k, line in enumerate(y_lines):
             if k == act:
-                line.set_color('tab:red')
+                line.set_color(colors['act'])
                 line.set_lw(2)
                 line.set_zorder(10)
             else:
-                line.set_color('tab:blue')
+                line.set_color(colors['nonact'])
                 line.set_lw(0.8)
                 line.set_zorder(3)
         plt.draw()
@@ -313,7 +320,6 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
         components[act] = I_s[act]*np.roll(_components[act], -roll_n[act])
         y_lines[act].set_ydata(components[act])
         total = np.sum(components, axis=0)
-        #total = np.sum([y for i, y in zip(I_s, components)], axis=0)
         total_line.set_ydata(total)
         plt.draw()
 
@@ -434,19 +440,19 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
 
     ## PLOT
     # Experimental spectrum
-    ax.plot(ppm_scale, exp/I, c='k', lw=1)
+    ax.plot(ppm_scale, exp/I, c=colors['exp'], lw=1)
 
     # Calculated spectra 
     y_lines = []    # Placeholder
     for k, y in enumerate(components):
         # One line per spectrum
-        line, = ax.plot(ppm_scale, I_s[k]*y, c='tab:blue', lw=0.8)
+        line, = ax.plot(ppm_scale, I_s[k]*y, c=colors['nonact'], lw=0.8)
         y_lines.append(line)
     # First one set as active
-    y_lines[0].set_color('tab:red')
+    y_lines[0].set_color(colors['act'])
     y_lines[0].set_lw(2)
     y_lines[0].set_zorder(10)
-    total_line, = ax.plot(ppm_scale, np.sum([i*y for i, y in zip(I_s, components)], axis=0), c='b', lw=0.4, zorder=2)
+    total_line, = ax.plot(ppm_scale, np.sum([i*y for i, y in zip(I_s, components)], axis=0), c=colors['total'], lw=0.4, zorder=2)
     total_line.set_visible(False)
 
     # Placeholder for sensitivity text
@@ -490,7 +496,7 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None):
 
     return exit_code, drifts, Icorr
 
-def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
+def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, rav_flag=False):
     """
     Opens a GUI for the interactive edit of a spectrum, peak-by-peak. The usage resembles the one for the manual computation of the initial guess for the fit in KLASSEZ.
     At the end, all the relative intensities of the peaks sum up to 1. You need to restore the total intensity outside this function.
@@ -525,6 +531,12 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
 
     #-----------------------------------------------------------------------
     ## USEFUL STRUCTURES
+    if rav_flag:
+        v_l = kz.misc.cmap2list(kz.CM['viridis'], N=10, start=0, end=1)
+        colors = {'exp': v_l[2], 'act': v_l[7], 'nonact':v_l[0], 'total':'m'}
+    else:
+        colors = {'exp': 'k', 'act':'tab:red', 'nonact':'tab:blue', 'total':'b'}
+
     class DummyEvent:
         """ represent a null_event """
         def __init__(self):
@@ -839,7 +851,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
         # Increase the number of peaks
         Np += 1 
         # Add an entry to the dictionary labelled as last
-        peaks[Np] = kz.fit.Peak(acqus, u=np.mean(ax.get_xlim()), N=N, group=lastgroup)
+        peaks[Np] = kz.fit.Peak(acqus, u=np.mean(ax.get_xlim()), N=N, group=0)
         # Plot it and add the trace to the plot dictionary
         p_sgn[Np] = ax.plot(ppm_scale[lim1:lim2], peaks[Np](A)[lim1:lim2], lw=0.8)[-1]
         # Move the slider to the position of the new peak
@@ -901,8 +913,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None):
 
     #-------------------------------------------------------------------------------
     # PLOT
-    ax.plot(ppm_scale[lim1:lim2], S[lim1:lim2], label='Experimental', lw=1.0, c='k')  # experimental
-    p_fit = ax.plot(ppm_scale[lim1:lim2], np.zeros_like(S)[lim1:lim2], label='Fit', lw=0.9, c='b')[-1]  # Total trace
+    ax.plot(ppm_scale[lim1:lim2], S[lim1:lim2], label='Experimental', lw=1.0, c=colors['exp'])  # experimental
+    p_fit = ax.plot(ppm_scale[lim1:lim2], np.zeros_like(S)[lim1:lim2], label='Fit', lw=0.9, c=colors['total'])[-1]  # Total trace
     p_sgn = {}  # Placeholder for the plot of the components
     original_colors = {}    # For reset, save the color of the traces
     for key, peak in peaks.items():
