@@ -409,6 +409,8 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     else:
         I0 = list(Icorr)
 
-    return components, Hs, I0, lims
+    #print('I0: ', I0)
+
+    return components, Hs, I0, lims, I
 
 

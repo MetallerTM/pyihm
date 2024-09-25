@@ -82,7 +82,7 @@ def plot_iguess(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
     plt.savefig(f'{filename}_iguess.{ext}', dpi=dpi)
     plt.close()
 
-def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600):
+def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_label=r'$\delta$ /ppm', filename='fit', ext='tiff', dpi=600, windows=False):
     """
     Makes the figures of the final fitted spectrum and saves them. 
     Three figures are made: look at the fitting.main function documentation for details.
@@ -116,8 +116,8 @@ def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
     plt.subplots_adjust(left=0.10, right=0.95, bottom=0.10, top=0.95)
 
     # Plot experimental spectrum and  total fitting function
-    kz.figures.ax1D(ax, ppm_scale, exp, c='k', lw=0.8, label='Experimental')
-    kz.figures.ax1D(ax, ppm_scale, total, c='tab:blue', lw=0.7, label='Fit')
+    exp_plot = kz.figures.ax1D(ax, ppm_scale, exp, c='k', lw=0.8, label='Experimental')
+    total_plot = kz.figures.ax1D(ax, ppm_scale, total, c='tab:blue', lw=0.7, label='Fit')
 
     # Compute the residual and an offset to make it appear below the baseline of the spectra
     residuals = exp - total
@@ -151,6 +151,14 @@ def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
 
     # Save the figure
     plt.savefig(f'{filename}_total.{ext}', dpi=dpi)
+    if windows:
+        for k, X in enumerate(plims):
+            exp_plot.set_data(ppm_scale[X], exp[X])
+            total_plot.set_data(ppm_scale[X], total[X])
+            r_plot.set_data(ppm_scale[X], residuals[X]-res_offset)
+            kz.misc.pretty_scale(ax, (max(ppm_scale[X]), min(ppm_scale[X])), axis='x')
+            kz.misc.pretty_scale(ax, kz.misc.get_ylim([exp[X], total[X], residuals[X]-res_offset]), axis='y')
+            plt.savefig(f'{filename}_W{k+1}.{ext}', dpi=dpi)
     plt.close()
 
 

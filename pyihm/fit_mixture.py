@@ -245,7 +245,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     def start_fit_align():
         print('Starting alignment fit...')
         minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims, DEBUG_FLAG))
-        result = minner.minimize(method='leastsq', max_nfev=20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+        result = minner.minimize(method='leastsq', max_nfev=0)#20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
         print(f'Alignment {result.message} Number of function evaluations: {result.nfev}.')
         return result
     result = start_fit_align()
@@ -302,6 +302,12 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     if debug:
         if (count-1) % 20 == 0:
             kz.figures.ongoing_fit(exp/I, total, t_residual, filename='ongoing_fit', dpi=200)
+            if 1:
+                npts = 0
+                for k, w in enumerate(plims):
+                    lenw = w.indices(N)[1] - w.indices(N)[0]
+                    kz.figures.ongoing_fit(exp[npts:npts+lenw]/I, total[npts:npts+lenw], t_residual[npts:npts+lenw], filename='ongoing_fit_W'+f'{k+1}', dpi=200)
+                    npts += lenw
 
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
@@ -388,7 +394,7 @@ def save_data(filename, ppm_scale, exp, *opt_spectra):
 
         
 
-def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_FLAG=False, METHOD_FLAG='fast', ext='tiff', dpi=600):
+def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOALGN_FLAG=False, DEBUG_FLAG=False, METHOD_FLAG='fast', ext='tiff', dpi=600):
     """
     Core of the fitting procedure.
     It computes the initial guess, save the figure, then starts the fit.
@@ -458,8 +464,8 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    I = kz.processing.integrate(exp, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
-
+    #I = kz.processing.integrate(exp, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
+   
     # Plot the initial guess
     print('Saving figure of the initial guess...')
     plots.plot_iguess(M.ppm, exp/I, i_total, [s for s in i_spectra], 
@@ -469,8 +475,27 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-iguess'), M.ppm, M.r, *[I*y for y in i_spectra])
     print('Done.\n')
 
-    # Align the chemical shifts
-    param = pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG)
+    param.add('count', value=0, vary=False)
+
+    if not NOALGN_FLAG:
+        # Compute residuals before the alignment
+        R_before_algn = f2min(param, N_spectra, acqus, N, exp_T, I, plims, '/dev/null', debug=False)
+        param['count'].set(value=0)
+        target_before_algn = np.sum(R_before_algn**2) / len(R_before_algn)   
+        
+        # Align the chemical shifts
+        param = pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG)
+
+        # Compute residuals before the alignment
+        R_after_algn = f2min(param, N_spectra, acqus, N, exp_T, I, plims, '/dev/null', debug=False)
+        target_after_algn = np.sum(R_after_algn**2) / len(R_after_algn)
+        param['count'].set(value=0)
+
+        # Check if the residuals are worse
+        if target_after_algn > target_before_algn:
+            print('WARNING: The alignment fit seems to have failed.')
+            print(f'Target went from {target_before_algn} to {target_after_algn}.')
+            print('You might consider the option to re-run the fit with the --noalgn option.')
 
     # Figure of aligned iguess
     #   ...as arrays
@@ -488,9 +513,6 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-algn'), M.ppm, M.r, *[I*y for y in algn_spectra])
     print('Done.\n')
 
-
-    param.add('count', value=0, vary=False)
-
     # Make a file for saving the convergence path
     cnvg_path = os.path.join(base_dir, f'{name}-DATA', f'{filename.rsplit(".")[0]}.cnvg')
 
@@ -506,7 +528,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
             print('Default fitting method: fast')
             minner = l.Minimizer(f2min, param, fcn_args=(N_spectra, acqus, N, exp_T, I, plims, cnvg_path, DEBUG_FLAG))
             print(f'Fitting n. 1 of 1, method: leastsq\nStarting fit...')
-            result = minner.minimize(method='leastsq', max_nfev=5000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+            result = minner.minimize(method='leastsq', max_nfev=15000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
             print(f'\n{result.message} Number of function evaluations: {result.nfev}.')
         elif flag == 'tight':
             print('Default fitting method: tight')
@@ -592,7 +614,7 @@ def main(M, N_spectra, Hs, param, lims=None, fit_kws={}, filename='fit', DEBUG_F
     plots.plot_output(M.ppm, exp/I, opt_total, [s for s in opt_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
-            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi)
+            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi, windows=True)
     save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-result'), M.ppm, M.r, *[I*y for y in opt_spectra])
     print('Done.\n')
 
