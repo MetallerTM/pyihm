@@ -245,7 +245,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     def start_fit_align():
         print('Starting alignment fit...')
         minner = l.Minimizer(f2min_align, param, fcn_args=(N_spectra, acqus, N, Fexp_T, plims, DEBUG_FLAG))
-        result = minner.minimize(method='leastsq', max_nfev=0)#20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
+        result = minner.minimize(method='leastsq', max_nfev=20000, xtol=1e-8, ftol=1e-8, gtol=1e-8)
         print(f'Alignment {result.message} Number of function evaluations: {result.nfev}.')
         return result
     result = start_fit_align()
