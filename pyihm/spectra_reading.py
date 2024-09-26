@@ -288,18 +288,20 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     _spectra_dir = deepcopy(spectra_dir)
 
     cal_file_flag = None
-    for k, filename in enumerate(spectra_dir):
+    for k, filename in enumerate(_spectra_dir):
         # <filename>.fvf becomes <filename>-cal.fvf
         base_name, extension = filename.rsplit('.', 1)
         new_filename = base_name + '-cal.' + extension
         if os.path.isfile(new_filename):
             if cal_file_flag is None:
                 print(f'{base_name}-cal.{extension} file found. Do you want to load it instead?')
-                load_cal = input('[yes]/no/all > ')
-                if load_cal.isspace() or 'y' in load_cal.lower():
+                load_cal = input('"y": [yes]/"n": no/"Y": yes all/"N": no all > ')
+                if load_cal.isspace() or 'y' in load_cal:
                     pass
-                elif 'a' in load_cal.lower():
+                elif 'Y' in load_cal:
                     cal_file_flag = True
+                elif 'N' in load_cal:
+                    break
                 else:
                     continue
             spectra_dir[k] = new_filename
@@ -354,11 +356,8 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             # <filename>.fvf becomes <filename>-cal.fvf
             base_name, extension = filename.rsplit('.', 1)
             new_filename = base_name + '-cal.' + extension
-            # If the -cal.fvf file already exists, do not create -cal-cal.fvf file
-            if os.path.isfile(new_filename):
-                new_filename = filename
             # Write the new fvf file
-            kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, Hs[k])
+            kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, 1)#Hs[k])
         if filename == new_filename:
             print('Calibrated version of the .fvf files updated.')
         else:
@@ -373,6 +372,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
         print('Append the following text to your input file:\n\nFIT_LIMITS\n'+text_to_append+'\n')
         lims = [(max(X), min(X)) for X in lims]
 
+
     # Make the Spectr objects with only the peaks inside the regions
     comp_peaks_in = [{} for k, _ in enumerate(comp_peaks)]
     components = []
@@ -385,15 +385,17 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             components.append('Q')
         else:
             components.append(Spectr(acqus, *[peak for _, peak in comp_peaks_in[k].items()]))
-
         # Correct Hs
         Hs_in = np.sum([peak.k for _, peak in comp_peaks_in[k].items()])
-        Hs[k] = round(Hs_in)
+        Hs[k] = round(Hs_in, 2)
+
+
 
     # Spectra that do not have peaks in the selected range
     def find_indices(list_to_check, item_to_find):
         return [idx for idx, value in enumerate(list_to_check) if value == item_to_find]
     missing = find_indices(Hs, 0)
+    c_idx = [i for i, _ in enumerate(Hs) if i not in missing]
     # Remove them one by one
     if len(missing):
         I0 = [Icorr[k] for k, _ in enumerate(Hs) if k not in missing]
@@ -409,8 +411,6 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     else:
         I0 = list(Icorr)
 
-    #print('I0: ', I0)
-
-    return components, Hs, I0, lims, I
+    return components, Hs, I0, lims, c_idx, I
 
 

@@ -115,12 +115,12 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')
-    components, Hs, I0, lims, I = spectra_reading(M, comp_path, Hs, lims, CAL_FLAG, RAV_FLAG)
+    components, Hs, I0, lims, c_idx, I = spectra_reading(M, comp_path, Hs, lims, CAL_FLAG, RAV_FLAG)
     print(f'Done. {len(components)} spectra will be employed in the fit.\n')
 
     ## Create the parameters using lmfit
     print('Creating parameters for the fit...')
-    param = gen_param(M, components, bds, lims, Hs, I0)
+    param = gen_param(M, components, bds, lims, Hs, c_idx, I0)
     print('Done.\n')
 
     # Do the fit and save figures and output file

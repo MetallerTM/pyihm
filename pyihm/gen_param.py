@@ -188,7 +188,7 @@ def multiplet2par(item, spect, group, bds):
     return p
 
 
-def main(M, components, bds, lims, Hs, I0=None):
+def main(M, components, bds, lims, Hs, c_idx, I0=None):
     """
     Create the lmfit.Parameters objects needed for the fitting procedure.
     -----------
@@ -203,6 +203,8 @@ def main(M, components, bds, lims, Hs, I0=None):
         Borders of the fitting windows, in ppm (left, right)
     - Hs: list
         Number of protons each spectrum integrates for
+    - c_idx: list
+        index of the components that are actually used in the fit
     -----------
     Returns:
     - param: lmfit.Parameters object
@@ -218,22 +220,20 @@ def main(M, components, bds, lims, Hs, I0=None):
     # Create the parameter object
     param = l.Parameters()
     for k, S in enumerate(components):  # Loop on the spectra
-        if S == 'Q':
-            continue
         # Intensity
-        param.add(as_par(f'S{k+1}_I', I0[k], (0, np.sum(Hs))))
+        param.add(as_par(f'S{c_idx[k]+1}_I', I0[k], (0, np.sum(Hs))))
         # All the other parameters
         for group, multiplet in S.p_collections.items():
             if group == 0:  # Group 0 is a list!
                 for peak in multiplet:
                     # Make the parameters
-                    p = singlet2par(peak, f'{k+1}', bds)
+                    p = singlet2par(peak, f'{c_idx[k]+1}', bds)
                     for par in p:
                         # Add them by unpacking the list
                         param.add(par)
             else:   
                 # make the parameters
-                p = multiplet2par(multiplet, f'{k+1}', group, bds)
+                p = multiplet2par(multiplet, f'{c_idx[k]+1}', group, bds)
                 # Add them by unpacking the list
                 for par in p:
                     param.add(par)

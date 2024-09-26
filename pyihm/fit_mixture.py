@@ -240,6 +240,7 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
         else:
             param[p].set(vary=False)
 
+    print(f'The alignment fit has {len([key for key in param if param[key].vary])} parameters.')
     # Make the fit
     @kz.cron
     def start_fit_align():
@@ -290,7 +291,12 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     # Compute the trace for each spectrum
     x = np.arange(N)
     spectra = calc_spectra(param, N_spectra, acqus, N)
+    spectra_obj = calc_spectra_obj(param, N_spectra, acqus, N)
+    KKK = [np.sum([peak.k for peak in peaks]) for peaks in spectra_obj]
     spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
+    Q = [kz.processing.integrate(q, acqus['freq']) / (0.5 * acqus['SW']) for q in spectra]
+    print('K', KKK)
+    print('Q', Q)
 
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
@@ -312,7 +318,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
-    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
+    #print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
     return t_residual
 
@@ -432,6 +438,7 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     """
     # Get the parameters for building the spectra
     acqus = dict(M.acqus)
+    acqus['freq'] = M.freq
     N = M.r.shape[-1]
 
     # Get names for the figures
@@ -459,13 +466,13 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
 
     # Calculate initial spectra
     i_spectra = calc_spectra(param, N_spectra, acqus, N)
+    i_spectra_obj = calc_spectra_obj(param, N_spectra, acqus, N)
 
     # Initial guess of the total calculated spectrum
     i_total = np.sum([s for s in i_spectra], axis=0)
     i_total_T = np.concatenate([i_total[w] for w in plims])
     # Calculate an intensity correction factor
-    #I = kz.processing.integrate(exp, x=M.freq) / (M.acqus['SW']/2) / np.sum(Hs)
-   
+
     # Plot the initial guess
     print('Saving figure of the initial guess...')
     plots.plot_iguess(M.ppm, exp/I, i_total, [s for s in i_spectra], 
@@ -505,13 +512,14 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     #   ... and finally make the total trace
     algn_total = np.sum(algn_spectra, axis=0)
 
-    print('Saving figures...')
-    plots.plot_output(M.ppm, exp/I, algn_total, [s for s in algn_spectra], 
-            lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
-            plims=plims,
-            X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}-algn'), ext=ext, dpi=dpi)
-    save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-algn'), M.ppm, M.r, *[I*y for y in algn_spectra])
-    print('Done.\n')
+    if not NOALGN_FLAG:
+        print('Saving figures...')
+        plots.plot_output(M.ppm, exp/I, algn_total, [s for s in algn_spectra], 
+                lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
+                plims=plims,
+                X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}-algn'), ext=ext, dpi=dpi)
+        save_data(os.path.join(base_dir, f'{name}-DATA', f'{filename}-algn'), M.ppm, M.r, *[I*y for y in algn_spectra])
+        print('Done.\n')
 
     # Make a file for saving the convergence path
     cnvg_path = os.path.join(base_dir, f'{name}-DATA', f'{filename.rsplit(".")[0]}.cnvg')
@@ -569,7 +577,7 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
 
     component_idx = [int(key.split('_')[0].replace('S', '')) for key in popt if 'I' in key]
     # Normalize the intensities so that they sum up to 1
-    for n in component_idx:
+    for k, n in enumerate(component_idx):
         In = popt[f'S{n}_I'].value    # Intensity of the n-th spectrum from the fit
         # Get relative intensities of the components of the n-th spectrum
         ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n}' in key and 'k' in key}
@@ -577,16 +585,20 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
         # Normalize them
         ri_norm, In_corr = kz.misc.molfrac(ri)
         # Correct the intensity of the n-th spectrum
-        popt[f'S{n}_I'].set(value=In*In_corr)
+        popt[f'S{n}_I'].set(value=In*In_corr/Hs[k])
         # Update the parameters
         for key, value in zip(ri_dict.keys(), ri_norm):
-            popt[key].set(value=value)
+            popt[key].set(value=value*Hs[k])
 
     #   Get the actual intensities
-    K = np.array([f for key, f in popt.valuesdict().items() if 'I' in key]) / Hs
+    K = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
+    print('K', K)
+    print('H', Hs)
 
     #   Normalize them
     K_norm, I_corr = kz.misc.molfrac(K)
+    print('Kn', K_norm)
+    print('Ic', I_corr)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
 
@@ -596,7 +608,7 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     # Print relative concentrations of the components
     print('FIT RESULTS')
     for k, K in enumerate(I_mixture):
-        print(f'Component {k+1:2.0f}: {K*100:10.5g}%')
+        print(f'Component {component_idx[k]+1:2.0f}: {K*100:10.5g}% | Rel: {K/min(I_mixture):10.3f}')
     print()
     
     # Write the output
@@ -607,11 +619,14 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     print(f'The results of the fit are saved in {filename}.out.\n')
     
     # Make the plot of the convergence path
-    plots.convergence_path(cnvg_path, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}_cnvg'), ext=ext, dpi=dpi)
+    try:
+        plots.convergence_path(cnvg_path, filename=os.path.join(base_dir, f'{name}-FIGURES', f'{filename}_cnvg'), ext=ext, dpi=dpi)
+    except:
+        pass
 
     # Make the figures
     print('Saving figures...')
-    plots.plot_output(M.ppm, exp/I, opt_total, [s for s in opt_spectra], 
+    plots.plot_output(M.ppm, exp, I*opt_total, [I*s for s in opt_spectra], 
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             plims=plims,
             X_label=X_label, filename=os.path.join(base_dir, f'{name}-FIGURES', filename), ext=ext, dpi=dpi, windows=True)
