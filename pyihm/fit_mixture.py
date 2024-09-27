@@ -295,8 +295,8 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     KKK = [np.sum([peak.k for peak in peaks]) for peaks in spectra_obj]
     spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
     Q = [kz.processing.integrate(q, acqus['freq']) / (0.5 * acqus['SW']) for q in spectra]
-    print('K', KKK)
-    print('Q', Q)
+    #print('K', KKK)
+    #print('Q', Q)
 
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
@@ -318,7 +318,7 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     # Print how the fit is going, both in the file and in standart output
     with open(cnvg_path, 'a', buffering=1) as cnvg:
         cnvg.write(f'{count:5.0f}\t{target:10.5e}\n')
-    #print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
+    print(f'Iteration step: {count:5.0f}; Target: {target:10.5e}', end='\r')
 
     return t_residual
 
