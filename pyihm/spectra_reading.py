@@ -61,7 +61,7 @@ class Multiplet:
                     'u_off': self.u_off[key],   # This is the distinguish trait
                     'fwhm': peak.fwhm,  
                     'k': peak.k,
-                    'x_g': peak.x_g,
+                    'b': peak.b,
                     'phi': peak.phi,
                     'group': peak.group
                     }
@@ -292,6 +292,8 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
         # <filename>.fvf becomes <filename>-cal.fvf
         base_name, extension = filename.rsplit('.', 1)
         new_filename = base_name + '-cal.' + extension
+        print(filename, new_filename)
+
         if os.path.isfile(new_filename):
             if cal_file_flag is None:
                 print(f'{base_name}-cal.{extension} file found. Do you want to load it instead?')
@@ -356,6 +358,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             # <filename>.fvf becomes <filename>-cal.fvf
             base_name, extension = filename.rsplit('.', 1)
             new_filename = base_name + '-cal.' + extension
+            print(filename, new_filename)
             # Write the new fvf file
             kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, 1)#Hs[k])
         if filename == new_filename:

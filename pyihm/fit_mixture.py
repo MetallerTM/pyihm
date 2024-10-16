@@ -60,7 +60,7 @@ def calc_spectra(param, N_spectra, acqus, N):
             u=dic[f'u{i}'], 
             fwhm=dic[f's{i}'],
             k=dic[f'k{i}'],
-            x_g=dic[f'x_g{i}'], 
+            b=dic[f'b{i}'], 
             phi=0,
             N=N,
             ) for i in peaks_idx[n]]
@@ -113,7 +113,7 @@ def calc_spectra_obj(param, N_spectra, acqus, N):
             u=dic[f'u{i}'], 
             fwhm=dic[f's{i}'],
             k=dic[f'k{i}'],
-            x_g=dic[f'x_g{i}'], 
+            b=dic[f'b{i}'], 
             phi=0,
             N=N,
             ) for i in peaks_idx[n]]
@@ -255,6 +255,15 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
     # Reset the "vary" status of the parameters to the original one
     for p in param:
         popt[p].set(vary=vary_dict[p])
+        # Decrease the variation window of the chemical shifts to 1/10 of the starting one
+        if 'u' in p or 'U' in p:
+            # Get the variation span
+            var_win = np.abs(popt[p].max - popt[p].min)
+            # utol is 1/2 of var_win, hence to get 1/10 you have to divide by 20
+            new_utol = var_win / 20
+            # update the values
+            popt[p].set(min = popt[p].value - new_utol)
+            popt[p].set(max = popt[p].value + new_utol)
 
     return popt
 
@@ -289,25 +298,20 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     param['count'].value += 1
     count = param['count'].value
     # Compute the trace for each spectrum
-    x = np.arange(N)
     spectra = calc_spectra(param, N_spectra, acqus, N)
-    spectra_obj = calc_spectra_obj(param, N_spectra, acqus, N)
-    KKK = [np.sum([peak.k for peak in peaks]) for peaks in spectra_obj]
     spectra_T = [np.concatenate([spectrum[w] for w in plims]) for spectrum in spectra]
-    Q = [kz.processing.integrate(q, acqus['freq']) / (0.5 * acqus['SW']) for q in spectra]
-    #print('K', KKK)
-    #print('Q', Q)
 
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
 
-    t_residual = exp / I - total
+    corr_factor, _ = kz.fit.fit_int(exp/I, total)
+    t_residual = exp / I - corr_factor * total
 
     target = np.sum(t_residual**2) / len(t_residual)
 
     if debug:
         if (count-1) % 20 == 0:
-            kz.figures.ongoing_fit(exp/I, total, t_residual, filename='ongoing_fit', dpi=200)
+            kz.figures.ongoing_fit(exp/I, corr_factor*total, t_residual, filename='ongoing_fit', dpi=200)
             if 1:
                 npts = 0
                 for k, w in enumerate(plims):
@@ -572,47 +576,55 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     opt_spectra = calc_spectra(popt, N_spectra, acqus, N)
     #   ...as kz.fit.Peak objects
     opt_spectra_obj = calc_spectra_obj(popt, N_spectra, acqus, N)
+    Hf = np.empty(len(Hs))
+    for k, peaks in enumerate(opt_spectra_obj):
+        Hf[k] = np.sum([peak.k for peak in peaks])
+    print('Hf', Hf)
     #   ... and finally make the total trace
     opt_total = np.sum(opt_spectra, axis=0)
 
     component_idx = [int(key.split('_')[0].replace('S', '')) for key in popt if 'I' in key]
-    # Normalize the intensities so that they sum up to 1
-    for k, n in enumerate(component_idx):
-        In = popt[f'S{n}_I'].value    # Intensity of the n-th spectrum from the fit
-        # Get relative intensities of the components of the n-th spectrum
-        ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n}' in key and 'k' in key}
-        ri = [f for key, f in ri_dict.items()]
-        # Normalize them
-        ri_norm, In_corr = kz.misc.molfrac(ri)
-        # Correct the intensity of the n-th spectrum
-        popt[f'S{n}_I'].set(value=In*In_corr/Hs[k])
-        # Update the parameters
-        for key, value in zip(ri_dict.keys(), ri_norm):
-            popt[key].set(value=value*Hs[k])
+    if 0:
+        # Normalize the intensities so that they sum up to 1
+        for k, n in enumerate(component_idx):
+            In = popt[f'S{n}_I'].value    # Intensity of the n-th spectrum from the fit
+            # Get relative intensities of the components of the n-th spectrum
+            ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n}' in key and 'k' in key}
+            ri = [f for key, f in ri_dict.items()]
+            # Normalize them
+            ri_norm, In_corr = kz.misc.molfrac(ri)
+            # Correct the intensity of the n-th spectrum
+            popt[f'S{n}_I'].set(value=In*In_corr/Hs[k])
+            # Update the parameters
+            for key, value in zip(ri_dict.keys(), ri_norm):
+                popt[key].set(value=value*Hs[k])
 
     #   Get the actual intensities
-    K = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
-    print('K', K)
+    concentrations = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
+    print('K', concentrations)
     print('H', Hs)
+    Hf = np.empty(len(Hs))
+    for k, peaks in enumerate(opt_spectra_obj):
+        Hf[k] = np.sum([peak.k for peak in peaks])
 
     #   Normalize them
-    K_norm, I_corr = kz.misc.molfrac(K)
-    print('Kn', K_norm)
+    c_norm, I_corr = kz.misc.molfrac(concentrations)
+    print('Kn', c_norm)
     print('Ic', I_corr)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
 
     # Calculate the concentration of the components 
-    I_mixture, _ = kz.misc.molfrac(np.array(K_norm))# / np.array(Hs))
+    #I_mixture, _ = kz.misc.molfrac(np.array(K_norm))# / np.array(Hs))
 
     # Print relative concentrations of the components
     print('FIT RESULTS')
-    for k, K in enumerate(I_mixture):
-        print(f'Component {component_idx[k]+1:2.0f}: {K*100:10.5g}% | Rel: {K/min(I_mixture):10.3f}')
+    for k, K in enumerate(c_norm):
+        print(f'Component {component_idx[k]:2.0f}: {K*100:10.5g}% | Rel: {K/min(c_norm):10.3f}')
     print()
     
     # Write the output
-    write_output(M, I_abs, I_mixture, opt_spectra_obj, 
+    write_output(M, I_abs, concentrations, opt_spectra_obj, 
             n_comp = component_idx,
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             filename=f'{filename}.out')

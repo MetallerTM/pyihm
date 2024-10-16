@@ -109,10 +109,10 @@ def singlet2par(item, spect, bds):
         rel=False,
         minthresh=0,
         ))
-    #   x_g
+    #   b
     p.append(as_par(
-        f'S{spect}_x_g{idx}',
-        dic['x_g'],
+        f'S{spect}_b{idx}',
+        dic['b'],
         (0, 1),
         rel=False,
         ))
@@ -178,10 +178,10 @@ def multiplet2par(item, spect, group, bds):
             rel=False,
             minthresh=0,
             ))
-        #   x_g
+        #   b
         p.append(as_par(
-            f'S{spect}_x_g{idx}',
-            dic['x_g'],
+            f'S{spect}_b{idx}',
+            dic['b'],
             (0, 1),
             rel=False
             ))

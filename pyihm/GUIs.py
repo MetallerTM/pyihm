@@ -621,7 +621,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             'u': np.abs(limits[0] - limits[1]) / 50,    # 1/50 of the SW
             'fwhm': 2.5,
             'k': 0.05,
-            'x_g': 0.1,
+            'b': 0.1,
             'phi': 10,
             'A': 10**(np.floor(np.log10(A)-1))    # approximately
             }
@@ -705,9 +705,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         else:
             nonlocal peaks
             peaks[idx].__dict__[param] += sens[param]
-            # Make safety check for x_g
-            if peaks[idx].x_g > 1:
-                peaks[idx].x_g = 1
+            # Make safety check for b
+            if peaks[idx].b > 1:
+                peaks[idx].b = 1
 
     def down_value(param, idx):
         """ Decrease the value of param of idx-th peak """
@@ -720,9 +720,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             # Safety check for fwhm
             if peaks[idx].fwhm < 0:
                 peaks[idx].fwhm = 0
-            # Safety check for x_g
-            if peaks[idx].x_g < 0:
-                peaks[idx].x_g = 0
+            # Safety check for b
+            if peaks[idx].b < 0:
+                peaks[idx].b = 0
 
     def scroll(event):
         """ Connection to mouse scroll """
@@ -754,7 +754,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             dic = dict(peaks[idx].par())
             dic['A'] = A
             # Update the text
-            values_print.set_text('{u:+7.3f}\n{fwhm:5.3f}\n{k:5.3f}\n{x_g:5.3f}\n{phi:+07.3f}\n{A:5.2e}\n{group:5.0f}'.format(**dic))
+            values_print.set_text('{u:+7.3f}\n{fwhm:5.3f}\n{k:5.3f}\n{b:5.3f}\n{phi:+07.3f}\n{A:5.2e}\n{group:5.0f}'.format(**dic))
             # Color the heading line of the same color of the trace
             head_print.set_color(p_sgn[idx].get_color())
         else:   # Clear the text and set the header to be black
@@ -926,7 +926,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     # Header for current values print
     head_print = ax.text(0.75, 0.35, 
             '{:>7s}\n{:>5}\n{:>5}\n{:>5}\n{:>7}\n{:>7}\n{:>7}'.format(
-                r'$\delta$', r'$\Gamma$', '$k$', '$x_g$', 'Phase', '$A$', 'Group'),
+                r'$\delta$', r'$\Gamma$', r'$k$', r'$\beta$', 'Phase', r'$A$', 'Group'),
             ha='right', va='top', transform=fig.transFigure, fontsize=14, linespacing=1.5)
     # Text placeholder for the values - linspacing is different to align with the header
     values_print = ax.text(0.85, 0.35, '',
