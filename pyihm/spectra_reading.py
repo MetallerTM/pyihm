@@ -210,7 +210,10 @@ def get_component_spectrum(filename, acqus, return_dict=True, N=None, norm=True)
     for region in regions:
         # Remove the 'limits' entry from each region because it is useless and it would raise an error
         region.pop('limits')
-        I += region.pop('I')
+        I_r = region.pop('I')
+        I += I_r
+        for key, peak in region.items():
+            peak['k'] *= I_r
     # Join all regions together
     dic_peaks = kz.misc.merge_dict(*regions)
 
@@ -219,15 +222,15 @@ def get_component_spectrum(filename, acqus, return_dict=True, N=None, norm=True)
     # Add the idx parameter
     for key, peak in dic_Peaks.items():
         peak.idx = key
+
+    K = [peak.k for _, peak in dic_Peaks.items()]
     if isinstance(norm, bool):
         if norm is True:
-            K = [peak.k for _, peak in dic_Peaks.items()]
             X, Icorr = kz.misc.molfrac(K)
             for k, key in enumerate(dic_Peaks.keys()):
                 dic_Peaks[key].k = X[k]
             I *= Icorr
     elif isinstance(norm, (int, float)):
-        K = [peak.k for _, peak in dic_Peaks.items()]
         X, Icorr = kz.misc.molfrac(K)
         for k, key in enumerate(dic_Peaks.keys()):
             dic_Peaks[key].k = X[k] * norm
@@ -264,12 +267,19 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
         If True, the GUIs will be drawn in colorblind palette
     ----------
     Returns:
-    - dioporco
-        quello stronzo di dio
-    - madonna_troia
-        La su mamma puttana
-    - sg
-        Il su babbo cornuto
+    return components, Hs, I0, lims, c_idx, I
+    - components: list of Spectr
+        Spectra to be used as model in the fit. Contain only the peaks within the fittin regions.
+    - Hs: list
+        Corrected integrals to be used for quantification
+    - I0: list
+        Initial concentrations of the components in the mixture
+    - lims: list of tuple
+        Fitting windows, in ppm
+    - c_idx: list
+        Indices of the components to be used
+    - I: float
+        Theoretical integral of the mixture spectrum, normalized
     """
     def is_in(x, Bs):
         """ Check if the chemical shift is inside one of the fitting intervals """
@@ -292,13 +302,14 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
         # <filename>.fvf becomes <filename>-cal.fvf
         base_name, extension = filename.rsplit('.', 1)
         new_filename = base_name + '-cal.' + extension
-        print(filename, new_filename)
 
         if os.path.isfile(new_filename):
             if cal_file_flag is None:
                 print(f'{base_name}-cal.{extension} file found. Do you want to load it instead?')
-                load_cal = input('"y": [yes]/"n": no/"Y": yes all/"N": no all > ')
-                if load_cal.isspace() or 'y' in load_cal:
+                load_cal = input('["n"]: no | "y": yes | "N": no all | "Y": yes all > ')
+                if load_cal.isspace() or 'n' in load_cal:
+                    continue
+                elif 'y' in load_cal:
                     pass
                 elif 'Y' in load_cal:
                     cal_file_flag = True
@@ -312,6 +323,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     comp_peaks = [get_component_spectrum(file, acqus, True, norm=Hs[k], N=M.r.shape[-1])[0] for k, file in enumerate(spectra_dir)]
     # List of 1darrays (one per spectrum)
     components = [get_component_spectrum(file, acqus, False, norm=Hs[k], N=M.r.shape[-1])[0] for k, file in enumerate(spectra_dir)]
+
     exit_code = True    # Placeholder
     # Compute intensity
     I = kz.processing.integrate(M.r, x=M.freq) / (acqus['SW']/2) /np.sum(Hs)
@@ -390,7 +402,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             components.append(Spectr(acqus, *[peak for _, peak in comp_peaks_in[k].items()]))
         # Correct Hs
         Hs_in = np.sum([peak.k for _, peak in comp_peaks_in[k].items()])
-        Hs[k] = round(Hs_in, 2)
+        Hs[k] = round(Hs_in, 5)
 
 
 

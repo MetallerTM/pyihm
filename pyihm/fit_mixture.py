@@ -304,14 +304,13 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
     # Sum the spectra to give the total fitting trace
     total = np.sum(spectra_T, axis=0)
 
-    corr_factor, _ = kz.fit.fit_int(exp/I, total)
-    t_residual = exp / I - corr_factor * total
+    t_residual = exp / I - total
 
     target = np.sum(t_residual**2) / len(t_residual)
 
     if debug:
         if (count-1) % 20 == 0:
-            kz.figures.ongoing_fit(exp/I, corr_factor*total, t_residual, filename='ongoing_fit', dpi=200)
+            kz.figures.ongoing_fit(exp/I, total, t_residual, filename='ongoing_fit', dpi=200)
             if 1:
                 npts = 0
                 for k, w in enumerate(plims):
@@ -601,11 +600,6 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
 
     #   Get the actual intensities
     concentrations = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
-    print('K', concentrations)
-    print('H', Hs)
-    Hf = np.empty(len(Hs))
-    for k, peaks in enumerate(opt_spectra_obj):
-        Hf[k] = np.sum([peak.k for peak in peaks])
 
     #   Normalize them
     c_norm, I_corr = kz.misc.molfrac(concentrations)
