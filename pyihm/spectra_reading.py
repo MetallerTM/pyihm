@@ -349,7 +349,7 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             offset = np.sum([y for k, y in enumerate(components) if k != idx], axis=0)
 
             # Make correction
-            comp_peaks[idx], Acorr = GUIs.edit_gui(M.r, M.ppm, peaks, acqus['t1'], acqus['SFO1'], acqus['o1p'], offset=offset, I=I, A=Icorr[idx], rav_flag=rav_flag)
+            comp_peaks[idx], Acorr = GUIs.edit_gui(M.r, M.ppm, peaks, acqus['t1'], acqus['SFO1'], acqus['o1p'], offset=offset, I=I, A0=Icorr[idx], rav_flag=rav_flag)
             # Make the correct integral of the spectrum
             for _, peak in comp_peaks[idx].items():
                 peak.k *= Hs[idx]

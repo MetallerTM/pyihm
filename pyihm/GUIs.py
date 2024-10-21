@@ -496,7 +496,7 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
 
     return exit_code, drifts, Icorr
 
-def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, rav_flag=False):
+def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A0=None, rav_flag=False):
     """
     Opens a GUI for the interactive edit of a spectrum, peak-by-peak. The usage resembles the one for the manual computation of the initial guess for the fit in KLASSEZ.
     At the end, all the relative intensities of the peaks sum up to 1. You need to restore the total intensity outside this function.
@@ -519,8 +519,10 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         External contribution to be added to the total trace. If None, an array of zeros is used
     - I: float
         Intensity correction for the experimental spectrum
-    - A: float
+    - A0: float
         Starting total intensity for the spectrum to edit (use concentration from cal_gui)
+    - rav_flag: bool
+        Uses colorblind palette
     ------------
     Returns:
     - peaks: dict
@@ -533,9 +535,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     ## USEFUL STRUCTURES
     if rav_flag:
         v_l = kz.misc.cmap2list(kz.CM['viridis'], N=10, start=0, end=1)
-        colors = {'exp': v_l[2], 'act': v_l[7], 'nonact':v_l[0], 'total':'m'}
+        colors = {'exp': v_l[2], 'act': v_l[7], 'nonact':v_l[0], 'total':'m', 'locked':v_l[4]}
     else:
-        colors = {'exp': 'k', 'act':'tab:red', 'nonact':'tab:blue', 'total':'b'}
+        colors = {'exp': 'k', 'act':'tab:red', 'nonact':'tab:blue', 'total':'b', 'locked':'g'}
 
     class DummyEvent:
         """ represent a null_event """
@@ -580,7 +582,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             Sum spectrum
         """
         # Get the arrays from the dictionary
-        T = [p(A) for _, p in peaks.items()]
+        T = [p(A) for key, p in peaks.items() if key in unlocked_keys]
         if len(T) > 0:  # Check for any peaks
             total = np.sum(T, axis=0)
             return total + offset
@@ -597,8 +599,12 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     else:
         S = np.copy(exp) / I
 
+    unlocked_keys = []  # Contains the keys of the unlocked peaks
+
     # Backup
-    _peaks = deepcopy(peaks)
+    _peaks = deepcopy(peaks)    
+    _unlocked_keys = []
+    # Get initial intensity for correct computation of the intensity at the end
     r_i, I_init = kz.misc.molfrac([peak.k for _, peak in peaks.items()])
     N = S.shape[-1]     # Number of points
     Np = len(peaks.keys())              # Number of peaks
@@ -613,12 +619,14 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     lim1 = kz.misc.ppmfind(ppm_scale, limits[0])[0]
     lim2 = kz.misc.ppmfind(ppm_scale, limits[1])[0]
     # Calculate the absolute intensity (or something that resembles it)
-    if A is None:
-        A = np.trapz(S[lim1:lim2], dx=kz.misc.calcres(ppm_scale*SFO1))*2*kz.misc.calcres(acqus['t1'])
-    _A = 1 * A
+    if A0 is None:
+        A0 = np.trapz(S[lim1:lim2], dx=kz.misc.calcres(ppm_scale*SFO1))*2*kz.misc.calcres(acqus['t1'])
+    _A = 1 * A0
+    # This A is the one that is modified when unlocked
+    A = A0
     # Make a sensitivity dictionary
     sens = {
-            'u': np.abs(limits[0] - limits[1]) / 50,    # 1/50 of the SW
+            'u': kz.misc.calcres(ppm_scale) * 20,    # 20 pts
             'fwhm': 2.5,
             'k': 0.05,
             'b': 0.1,
@@ -646,6 +654,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     group_box = plt.axes([0.76, 0.40, 0.06, 0.04])      # Textbox for the group selection
     plus_box = plt.axes([0.894, 0.65, 0.08, 0.075])     # Add button
     minus_box = plt.axes([0.894, 0.55, 0.08, 0.075])    # Minus button
+    lock_box = plt.axes([0.894, 0.35, 0.08, 0.075])     # Lock/Unlock button
     
     # Make widgets
     #   Buttons
@@ -655,6 +664,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     reset_button = Button(reset_box, 'RESET', hovercolor = '0.975')
     plus_button = Button(plus_box, '$+$', hovercolor='0.975')
     minus_button = Button(minus_box, '$-$', hovercolor='0.975')
+    lock_button = Button(lock_box, 'UNLOCK', hovercolor='0.975')
 
     #   Textbox
     group_tb = TextBox(group_box, 'Group', textalignment='center')
@@ -669,11 +679,6 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
 
     #-------------------------------------------------------------------------------
     ## SLOTS
-
-    def redraw():
-        """ Recompute the x-axis scale according to the current limits """
-        kz.misc.pretty_scale(ax, ax.get_xlim(), 'x')
-        plt.draw()
 
     def radio_changed(event):
         """ Change the printed value of sens when the radio changes """
@@ -699,6 +704,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
 
     def up_value(param, idx):
         """ Increase the value of param of idx-th peak """
+        # Allow edit only if it is unlocked
+        if idx not in unlocked_keys:
+            return
         if param == 'A':        # It is outside the peaks dictionary!
             nonlocal A
             A += sens['A']
@@ -711,6 +719,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
 
     def down_value(param, idx):
         """ Decrease the value of param of idx-th peak """
+        # Allow edit only if it is unlocked
+        if idx not in unlocked_keys:
+            return
         if param == 'A':    # It is outside the peaks dictionary!
             nonlocal A
             A -= sens['A']
@@ -740,17 +751,20 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             down_value(param, idx)
 
         # Recompute the components
-        for k, _ in enumerate(peaks):
-            p_sgn[k+1].set_ydata(peaks[k+1](A)[lim1:lim2])
+        for k in peaks.keys():
+            if k not in unlocked_keys:
+                continue
+            p_sgn[k].set_ydata(peaks[k](A)[lim1:lim2])
         # Recompute the total trace
-        p_fit.set_ydata(calc_total(peaks, offset)[lim1:lim2])
+        p_fit.set_ydata(calc_total(peaks, offset+locked_total)[lim1:lim2])
         # Update the text
-        write_par(idx)
-        redraw()
+        if idx in unlocked_keys:
+            write_par(idx)
+        plt.draw()
 
     def write_par(idx):
         """ Write the text to keep track of your amounts """
-        if idx:     # Write the things
+        if idx in unlocked_keys:     # Write the things
             dic = dict(peaks[idx].par())
             dic['A'] = A
             # Update the text
@@ -760,6 +774,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         else:   # Clear the text and set the header to be black
             values_print.set_text('')
             head_print.set_color('k')
+        plt.draw()
 
     def write_sens(param):
         """ Updates the current sensitivity value in the text """
@@ -785,7 +800,6 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         group_tb.text_disp.set_text('')
         peaks[idx].group = group
         write_par(idx)
-        redraw()
 
     def selector(event):
         """ Update the text when you move the slider """
@@ -797,7 +811,6 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
                 else:
                     p_sgn[key].set_lw(0.8)
             write_par(idx)
-        redraw()
 
     def key_binding(event):
         """ Keyboard """
@@ -825,10 +838,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     def reset(event):
         """ Return everything to default """
         nonlocal Np, peaks, p_sgn, A, sens
-        # Remove all the peaks 
-        Q = Np  # We need another variable because Np is changed by remove_peak
-        for k in range(Q):
-            remove_peak(event)
+        # Lock everything
+        lock()
         # Reset all the rest
         A = _A
         sens = dict(_sens)
@@ -839,11 +850,13 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         peaks = deepcopy(_peaks)
         Np = len(peaks.keys())
         slider.valstep = 1/Np
-        for key, peak in peaks.items():
-            p_sgn[key] = ax.plot(ppm_scale[lim1:lim2], peak(A)[lim1:lim2], lw=0.8)[-1]
-            p_sgn[key].set_color(original_colors[key])
+        # Re-lock because otherwise it does not compute total_locked correctly
+        lock()
+        # Draw the stuff
         scroll(null_event)
-        redraw()
+        # Reset the label on the LOCK/UNLOCK button to default
+        lock_button.label.set_text('UNLOCK')
+        plt.draw()
 
     def add_peak(event):
         """ Add a component """
@@ -864,7 +877,6 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
         p_fit.set_ydata(total[lim1:lim2])
         # Update the text
         write_par(Np)
-        redraw()
 
     def remove_peak(event):
         """ Remove the active component """
@@ -873,6 +885,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
             return
         # Get the active peak
         idx = int(np.floor(slider.val * Np) + 1)
+        # Allow edit only on unlocked peaks
+        if idx not in unlocked_keys:
+            return
         # Decrease Np of 1
         Np -= 1
         # Delete the entry from the peaks dictionary
@@ -905,11 +920,80 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
                 slider.set_val( (idx - 2) / Np)     # (idx - 1) -1
             slider.valstep = 1 / Np
             write_par(int(np.floor(slider.val * Np) + 1))
-        redraw()
 
     def save(event):
         # Close the figure panel
         plt.close()
+
+    def lock():
+        """ Set the spectrum in LOCK mode """
+        nonlocal A, unlocked_keys, locked_total, p_sgn, original_colors, peaks
+        # Remove all the interactive peaks
+        for key in unlocked_keys:
+            item = p_sgn.pop(key)
+            item.set_visible(False)
+            del item
+        # Correct the intensities to adhere them with A0
+        for k, key in enumerate(unlocked_keys):
+            peaks[key].k *= A / A0
+        # Reset A to A0
+        A = A0
+        # Lock all the peaks by emptying unlocked_keys
+        unlocked_keys = deepcopy(_unlocked_keys)
+        # Compute the trace of the locked peaks
+        locked_total = np.sum([peak(A) for key, peak in peaks.items() if key not in unlocked_keys], axis=0)
+        # Update it
+        locked_trace.set_ydata(locked_total[lim1:lim2])
+        # Draw the stuff
+        scroll(null_event)
+        # Update the slider
+        slider.set_val(0)
+        slider.valstep = 1e-10
+        write_par(0)
+
+    def unlock():
+        """ Set the spectrum in UNLOCK mode """
+        nonlocal A, unlocked_keys, locked_total, p_sgn, original_colors
+        # Get the current limits of the spectrum
+        window = ax.get_xlim()
+        A = A0      # Set current A to A0
+        # Add the peaks inside the window as editable
+        for key, peak in peaks.items():
+            if min(window) <= peak.u and peak.u <= max(window):
+                unlocked_keys.append(key)
+        # Draw only the unlocked peaks
+        for key, peak in peaks.items():
+            if key not in unlocked_keys:
+                continue
+            p_sgn[key] = ax.plot(ppm_scale[lim1:lim2], peak(A)[lim1:lim2], lw=0.8)[-1]
+            original_colors[key] = p_sgn[key].get_color()
+        # Compute the locked trace with only the peaks left inactive
+        if len(unlocked_keys) - Np == 0: 
+            locked_total = np.zeros_like(ppm_scale)
+        else:
+            locked_total = np.sum([peak(A) for key, peak in peaks.items() if key not in unlocked_keys], axis=0)
+        # Draw stuff
+        locked_trace.set_ydata(locked_total[lim1:lim2])
+        scroll(null_event)
+        # Update the slider
+        idx = min(unlocked_keys)
+        slider.set_val( (idx - 1) / Np)     # (idx - 1) -1
+        slider.valstep = 1 / Np
+        write_par(idx)
+        
+    def lock_unlock(event):
+        """ Fork for LOCK/UNLOCK button """
+        if lock_button.label.get_text() == 'LOCK':
+            # It means that the spectrum is in "unlock" state
+            lock()
+            # Change the label to "Unlock"
+            lock_button.label.set_text('UNLOCK')
+        elif lock_button.label.get_text() == 'UNLOCK':
+            # It means that the spectrum is in "lock" state
+            unlock()
+            # Change the label to "Lock"
+            lock_button.label.set_text('LOCK')
+        plt.draw()
 
     #-------------------------------------------------------------------------------
     # PLOT
@@ -917,11 +1001,11 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     p_fit = ax.plot(ppm_scale[lim1:lim2], np.zeros_like(S)[lim1:lim2], label='Fit', lw=0.9, c=colors['total'])[-1]  # Total trace
     p_sgn = {}  # Placeholder for the plot of the components
     original_colors = {}    # For reset, save the color of the traces
-    for key, peak in peaks.items():
-        p_sgn[key] = ax.plot(ppm_scale[lim1:lim2], peak(A)[lim1:lim2], lw=0.8)[-1]
-        original_colors[key] = p_sgn[key].get_color()
-    idx = int(np.floor(slider.val * Np) + 1)
-    p_sgn[idx].set_lw(3)
+
+    # Trace for the locked peaks
+    locked_total = np.sum([peak(A) for key, peak in peaks.items() if key not in unlocked_keys], axis=0)
+    locked_trace = ax.plot(ppm_scale[lim1:lim2], locked_total[lim1:lim2], lw=0.9, c=colors['locked'])[-1]
+    idx = 0
     
     # Header for current values print
     head_print = ax.text(0.75, 0.35, 
@@ -960,6 +1044,9 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     kz.misc.pretty_scale(ax, ax.get_ylim(), axis='y', n_major_ticks=10)
     kz.misc.mathformat(ax)
 
+    # Print instructions in the title
+    ax.set_title('Zoom on the interested area, then UNLOCK it. Edit the peaks using the mouse scroll.\nFinally, LOCK again. Repeat. Press "SAVE" to save the results.')
+
     # RESET values for xlim and ylim
     _xlim = ax.get_xlim()
     _ylim = ax.get_ylim()
@@ -973,6 +1060,7 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A=None, r
     group_tb.on_submit(set_group)
     reset_button.on_clicked(reset)
     save_button.on_clicked(save)
+    lock_button.on_clicked(lock_unlock)
     peak_radio.on_clicked(radio_changed)
     fig.canvas.mpl_connect('scroll_event', scroll)
     fig.canvas.mpl_connect('key_press_event', key_binding)
