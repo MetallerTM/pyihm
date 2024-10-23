@@ -245,7 +245,7 @@ def get_component_spectrum(filename, acqus, return_dict=True, N=None, norm=True)
         return total, I
 
 
-def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
+def main(M, spectra_dir, Hs, lims=None, I0=None, cal_flag=False, rav_flag=False):
     """
     Reads the .fvf files, containing the fitted parameters of the peaks of a series of spectra.
     Then, computes a list of Spectr objects with those parameters, and returns it.
@@ -261,13 +261,14 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
         Number of protons each spectrum integrates for
     - lims: list of tuple
         Borders of the fitting windows, in ppm (left, right)
+    - I0: list
+        Initial guess for the concentrations
     - cal_flag: bool
         If True, opens the optimization of the initial guess through GUI
     - rav_flag: bool
         If True, the GUIs will be drawn in colorblind palette
     ----------
     Returns:
-    return components, Hs, I0, lims, c_idx, I
     - components: list of Spectr
         Spectra to be used as model in the fit. Contain only the peaks within the fittin regions.
     - Hs: list
@@ -324,16 +325,19 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
     # List of 1darrays (one per spectrum)
     components = [get_component_spectrum(file, acqus, False, norm=Hs[k], N=M.r.shape[-1])[0] for k, file in enumerate(spectra_dir)]
 
-    exit_code = True    # Placeholder
+    exit_code = 1    # Placeholder
     # Compute intensity
     I = kz.processing.integrate(M.r, x=M.freq) / (acqus['SW']/2) /np.sum(Hs)
     # Compute initial guess for concentrations
-    Icorr = [1. for k in range(len(components))]
+    if I0:
+        Icorr = [C for C in I0]
+    else:
+        Icorr = [1. for k in range(len(components))]
 
     if cal_flag:
         while exit_code:        # Loop over two functions
             # Try to perform drift and intensity adjustments
-            exit_code, drifts, Icorr = GUIs.cal_gui(M.r, M.ppm, components, I, Icorr, rav_flag)
+            exit_code, drifts, Icorr = GUIs.cal_gui(M.r, M.ppm, components, I, Icorr, exit_code, rav_flag)
             # Apply drift corrections to the peaks
             for k, ucorr in enumerate(drifts):
                 for _, peak in comp_peaks[k].items():
@@ -372,11 +376,15 @@ def main(M, spectra_dir, Hs, lims=None, cal_flag=False, rav_flag=False):
             new_filename = base_name + '-cal.' + extension
             print(filename, new_filename)
             # Write the new fvf file
-            kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, 1)#Hs[k])
+            kz.fit.write_vf(new_filename, comp_peaks[k], tmp_lims, 1, header=True)#Hs[k])
         if filename == new_filename:
             print('Calibrated version of the .fvf files updated.')
         else:
             print('Calibrated version of the .fvf files saved.')
+        I0str = ', '.join([f'{C:.4f}' for C in Icorr])
+        print('\nInitial guess for the concentration computed.')
+        print('Add the following lines to the input file:')
+        print(f'I0\n{I0str}\n')
 
     # Select regions for performing the fit
     if lims is None:

@@ -67,7 +67,8 @@ inp_files = args.input  # Access the input files through argparse
 for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(inp_files)} input file.\n')
-    filename, mix_path, mix_kws, mix_txtf, proc_opt, comp_path, lims, bds, fit_kws, plt_opt, Hs = read_input(inp_file)
+    filename, mix_path, mix_kws, mix_txtf, proc_opt, comp_path, lims, bds, fit_kws, plt_opt, Hs, I0 = read_input(inp_file)
+    print(I0)
 
     # Create the folders where to save the data and the figures
     if os.sep in filename:
@@ -115,7 +116,7 @@ for n_inp, inp_file in enumerate(inp_files):
 
     ## Create list of peaks files
     print('Reading the pure components spectra...')
-    components, Hs, I0, lims, c_idx, I = spectra_reading(M, comp_path, Hs, lims, CAL_FLAG, RAV_FLAG)
+    components, Hs, I0, lims, c_idx, I = spectra_reading(M, comp_path, Hs, lims, I0, CAL_FLAG, RAV_FLAG)
     print(f'Done. {len(components)} spectra will be employed in the fit.\n')
 
     ## Create the parameters using lmfit

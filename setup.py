@@ -20,7 +20,7 @@ setup(
             'License :: OSI Approved :: BSD License'
             ],
         license='LICENSE.txt',
-        install_requires = ['numpy', 'scipy', 'lmfit', 'seaborn', 'nmrglue', 'matplotlib>=3.7', 'csaps', 'klassez'],
+        install_requires = ['numpy', 'scipy', 'lmfit', 'seaborn', 'nmrglue', 'matplotlib>=3.7', 'csaps', 'klassez>=0.4a.6'],
         packages=['pyihm'],
         include_package_data = True,
         python_requires = '>=3.10',

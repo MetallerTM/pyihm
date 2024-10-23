@@ -202,7 +202,7 @@ def select_regions(ppm_scale, spectrum, full_calc):
     return regions
 
 
-def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
+def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, init_active=1, rav_flag=False):
     """
     Corrects the chemical shifts and the intensities of the spectra to be employed during the fit.
     Works together with edit_gui, that allows to break up a spectrum in single components in order to adjust them.
@@ -216,6 +216,12 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
         Spectra to calibrate
     - I: float
         Intensity correction for the experimental spectrum
+    - prev_Icorr: list
+        Starting concentration to be further edited
+    - init_active: int
+        Initial spectrum to be activated
+    - rav_flag: bool
+        Activates colorblind paelette
     ------------
     Returns:
     - exit_code: int
@@ -224,7 +230,6 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
         Correction for the chemical shift correction of each spectrum, in ppm
     - Icorr
         Correction for the intensity of each spectrum
-    return exit_code, drifts, Icorr
     """
     # Initialize variables and resets
     if rav_flag:
@@ -275,7 +280,7 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
 
     ## WIDGETS
     #   Selector slider
-    slider = Slider(box_slider, 'Spectrum', valmin=1, valmax=N_spectra, valinit=1, valstep=1, orientation='vertical')
+    slider = Slider(box_slider, 'Spectrum', valmin=1, valmax=N_spectra, valinit=init_active, valstep=1, orientation='vertical')
     #   Radiobuttons
     radio = RadioButtons(box_radio, ['DRIFT', 'INTENS'])
     #   Sensitivity buttons
@@ -449,9 +454,9 @@ def cal_gui(exp, ppm_scale, components, I, prev_Icorr=None, rav_flag=False):
         line, = ax.plot(ppm_scale, I_s[k]*y, c=colors['nonact'], lw=0.8)
         y_lines.append(line)
     # First one set as active
-    y_lines[0].set_color(colors['act'])
-    y_lines[0].set_lw(2)
-    y_lines[0].set_zorder(10)
+    y_lines[init_active-1].set_color(colors['act'])
+    y_lines[init_active-1].set_lw(2)
+    y_lines[init_active-1].set_zorder(10)
     total_line, = ax.plot(ppm_scale, np.sum([i*y for i, y in zip(I_s, components)], axis=0), c=colors['total'], lw=0.4, zorder=2)
     total_line.set_visible(False)
 

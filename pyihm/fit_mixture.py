@@ -356,12 +356,12 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
     f = open(filename, 'w', buffering=1)
 
     ## HEADER
-    f.write('Fit performed by {} on {}\n\n'.format(os.getlogin(), date_and_time))
+    f.write('! Fit performed by {} on {}\n\n'.format(os.getlogin(), date_and_time))
     f.write(f'Mixture spectrum: {os.path.join(M.datadir, M.filename)}\n\n')
     f.write(f'Absolute intensity correction: I = {I:.5e}\n\n')
     f.write('Relative intensities:\n')
     for k, r_i in enumerate(K):
-        f.write(f'Comp. {n_comp[k]:>3}: {r_i*100:10.5g}%\n')
+        f.write(f'Component {n_comp[k]:>3.0f}: {r_i*100:10.5f}% | Rel: {r_i/min(K):10.5f}\n')
     f.write('\n\n\n')
     f.close()
 
@@ -578,47 +578,27 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     Hf = np.empty(len(Hs))
     for k, peaks in enumerate(opt_spectra_obj):
         Hf[k] = np.sum([peak.k for peak in peaks])
-    print('Hf', Hf)
     #   ... and finally make the total trace
     opt_total = np.sum(opt_spectra, axis=0)
 
     component_idx = [int(key.split('_')[0].replace('S', '')) for key in popt if 'I' in key]
-    if 0:
-        # Normalize the intensities so that they sum up to 1
-        for k, n in enumerate(component_idx):
-            In = popt[f'S{n}_I'].value    # Intensity of the n-th spectrum from the fit
-            # Get relative intensities of the components of the n-th spectrum
-            ri_dict = {key: f for key, f in popt.valuesdict().items() if f'S{n}' in key and 'k' in key}
-            ri = [f for key, f in ri_dict.items()]
-            # Normalize them
-            ri_norm, In_corr = kz.misc.molfrac(ri)
-            # Correct the intensity of the n-th spectrum
-            popt[f'S{n}_I'].set(value=In*In_corr/Hs[k])
-            # Update the parameters
-            for key, value in zip(ri_dict.keys(), ri_norm):
-                popt[key].set(value=value*Hs[k])
 
     #   Get the actual intensities
     concentrations = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
 
     #   Normalize them
     c_norm, I_corr = kz.misc.molfrac(concentrations)
-    print('Kn', c_norm)
-    print('Ic', I_corr)
     #   Correct the total intensity to preserve the absolute values
     I_abs = I * I_corr
-
-    # Calculate the concentration of the components 
-    #I_mixture, _ = kz.misc.molfrac(np.array(K_norm))# / np.array(Hs))
 
     # Print relative concentrations of the components
     print('FIT RESULTS')
     for k, K in enumerate(c_norm):
-        print(f'Component {component_idx[k]:2.0f}: {K*100:10.5g}% | Rel: {K/min(c_norm):10.3f}')
+        print(f'Component {component_idx[k]:2.0f}: {K*100:10.5f}% | Rel: {K/min(c_norm):10.5f}')
     print()
     
     # Write the output
-    write_output(M, I_abs, concentrations, opt_spectra_obj, 
+    write_output(M, I_abs, c_norm, opt_spectra_obj, 
             n_comp = component_idx,
             lims=(np.max(np.array(lims)), np.min(np.array(lims))), 
             filename=f'{filename}.out')

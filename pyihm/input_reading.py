@@ -171,7 +171,11 @@ def read_input_file(filename):
                     dic['plt_opt'][key] = eval(item)
                 except:
                     dic['plt_opt'][key] = f'{item}'
+        # Initial guess for the concentrations
+        if 'I0' in lines[0]:
+            dic['I0'] = eval('['+lines[1]+']')
     f.close()
+
     return dic
 
 def read_input(filename):
@@ -207,6 +211,8 @@ def read_input(filename):
     dic = read_input_file(filename)
 
     # Check for missing entries
+    if 'I0' not in dic.keys():
+        dic['I0'] = None
     if 'mix_spectrum_txt' not in dic.keys():    # This is an optional parameter: replacement for spectrum
         dic['mix_spectrum_txt'] = None
     if 'fit_lims' not in dic.keys():
@@ -271,6 +277,7 @@ def read_input(filename):
             dic['fit_kws'],
             dic['plt_opt'],
             dic['Hs'],
+            dic['I0']
             ]
     return ret_vals
 
