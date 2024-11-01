@@ -581,10 +581,17 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
     #   ... and finally make the total trace
     opt_total = np.sum(opt_spectra, axis=0)
 
+
     component_idx = [int(key.split('_')[0].replace('S', '')) for key in popt if 'I' in key]
 
     #   Get the actual intensities
     concentrations = np.array([f for key, f in popt.valuesdict().items() if 'I' in key])
+    # Correction factor for intensities
+    KH = Hf / Hs
+    concentrations *= KH
+    for k, peaks in enumerate(opt_spectra_obj):
+        for peak in peaks:
+            peak.k /= KH[k]
 
     #   Normalize them
     c_norm, I_corr = kz.misc.molfrac(concentrations)

@@ -767,6 +767,15 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A0=None, 
             write_par(idx)
         plt.draw()
 
+    def normalize():
+        nonlocal peaks, A
+        K0 = [peaks[k].k for k in unlocked_keys]
+        Kn, N0 = kz.misc.molfrac(K0)
+        for k, key in enumerate(unlocked_keys):
+            peaks[key].k = Kn[k]
+        A *= N0
+        scroll(null_event)
+
     def write_par(idx):
         """ Write the text to keep track of your amounts """
         if idx in unlocked_keys:     # Write the things
@@ -839,6 +848,8 @@ def edit_gui(exp, ppm_scale, peaks, t_AQ, SFO1, o1p, offset=None, I=1, A0=None, 
         if key == 'up' or key == 'down':
             event.button = key
             scroll(event)
+        if key == 'N':
+            normalize()
 
     def reset(event):
         """ Return everything to default """
