@@ -142,8 +142,8 @@ def f2min_align(param, N_spectra, acqus, N, exp, plims, debug=False):
         True for saving a figure of the ongoing fit every 20 iterations
     ----------
     Returns:
-    - target: float
-        \sum [ (exp - I*calc)^2 ]
+    - t_residual: 1darray
+        exp/I - calc
     """
     param['count'].value += 1
     count = param['count'].value
@@ -214,7 +214,6 @@ def pre_alignment(exp, acqus, N_spectra, N, plims, param, DEBUG_FLAG=False):
         actual parameters
     - DEBUG_FLAG: bool
         True for saving a figure of the ongoing fit every 20 iterations
-
     ----------
     Returns:
     - popt: lmfit.Parameters object
@@ -293,7 +292,8 @@ def f2min(param, N_spectra, acqus, N, exp, I, plims, cnvg_path, debug=False):
         If True, saves a figurte of the ongoing fit in the current working directory every 20 iterations
     ----------
     Returns:
-    - target: 1darray
+    - t_residual: 1darray
+        exp/I - calc
     """
     param['count'].value += 1
     count = param['count'].value
@@ -337,7 +337,7 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
     - I: float
         Absolute intensity for the calculated spectrum
     - K: sequence
-        Relative intensities of the spectra in the mixture
+        Relative concentrations of the components spectra in the mixture
     - spectra: list of kz.fit.Peak objects
         Computed components of the mixture, weighted for their relative intensity
     - n_comp: list
@@ -358,7 +358,7 @@ def write_output(M, I, K, spectra, n_comp, lims, filename='fit.report'):
     ## HEADER
     f.write('! Fit performed by {} on {}\n\n'.format(os.getlogin(), date_and_time))
     f.write(f'Mixture spectrum: {os.path.join(M.datadir, M.filename)}\n\n')
-    f.write(f'Absolute intensity correction: I = {I:.5e}\n\n')
+    f.write(f'Absolute intensity correction: I = {I:.8e}\n\n')
     f.write('Relative intensities:\n')
     for k, r_i in enumerate(K):
         f.write(f'Component {n_comp[k]:>3.0f}: {r_i*100:10.5f}% | Rel: {r_i/min(K):10.5f}\n')
@@ -430,6 +430,8 @@ def main(M, N_spectra, Hs, param, I, lims=None, fit_kws={}, filename='fit', NOAL
         Additional parameters for the lmfit.Minimizer.minimize function
     - filename: str
         Root of the names for the names of the files that will be saved.
+    - NOALGN_FLAG: bool
+        If True, skips the alignment fit
     - DEBUG_FLAG: bool
         True for saving a figure of the ongoing fit every 20 iterations
     - METHOD_FLAG: str

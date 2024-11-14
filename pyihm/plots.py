@@ -20,6 +20,8 @@ def plot_iguess(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
         Spectra used as components, real part
     - lims: tuple or None
         Delimiters of the fitting region, in ppm. If None, the whole spectrum is used.
+    - plims: list of slice or None
+        Delimiters of the fitting windows, to cut the residuals
     - X_label: str
         Label for the X_axis
     - filename: str
@@ -98,6 +100,8 @@ def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
         Spectra used as components, real part
     - lims: tuple or None
         Delimiters of the fitting region, in ppm. If None, the whole spectrum is used.
+    - plims: list of slice or None
+        Delimiters of the fitting windows, to cut the residuals
     - X_label: str
         Label for the X_axis
     - filename: str
@@ -106,6 +110,8 @@ def plot_output(ppm_scale, exp, total, components, lims=None, plims=None, X_labe
         Format of the figures
     - dpi: int
         Resolution of the figures, in dots per inches
+    - windows: bool
+        If True, saves a separate figure for each fitting window
     """
 
     ## FIRST FIGURE: experimental, total, residuals

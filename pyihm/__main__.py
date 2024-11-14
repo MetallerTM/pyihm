@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-'''
+"""
 To run the program, type in the terminal:
 $ python -m pyihm --input input_file1 input_file2 ... *flags
 
@@ -9,7 +9,7 @@ List of flags:
 --cal: Perform calibration of the spectrum
 --opt_method: Choose the type of conversion 
 --input: Input files
-'''
+"""
 
 import sys
 import os
@@ -68,7 +68,6 @@ for n_inp, inp_file in enumerate(inp_files):
     ## Read the input file to get the filenames and stuff
     print(f'pyIHM is now reading {inp_file} as {n_inp+1}/{len(inp_files)} input file.\n')
     filename, mix_path, mix_kws, mix_txtf, proc_opt, comp_path, lims, bds, fit_kws, plt_opt, Hs, I0 = read_input(inp_file)
-    print(I0)
 
     # Create the folders where to save the data and the figures
     if os.sep in filename:

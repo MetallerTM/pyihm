@@ -7,7 +7,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 setup(
         name='pyihm',
-        version='1.1.0',
+        version='2.0.0',
         author='Francesco Bruno, Letizia Fiorucci',
         author_email='bruno@cerm.unifi.it',
         description='Indirect Hard Modelling, in Python',

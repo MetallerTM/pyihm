@@ -196,6 +196,7 @@ def read_input(filename):
         Additional instructions to be passed to kz.Spectrum_1D.__init__
     - mix_spectrum_txt: str or None
         Path to a .txt file that contains a replacement spectrum for the mixture
+            dic['proc_opt'],
     - comp_path: list
         Path to the .fvf files to be used for building the spectra of the components
     - fit_lims: tuple
@@ -206,6 +207,14 @@ def read_input(filename):
         > utol_sg = allowed displacement for the peaks that are part of the same multiplet relatively to the center, in ppm
         > stol = allowed variation for the linewidth, in Hz 
         > ktol = allowed variation for the relative intensities within the same spectrum
+    - fit_kws: list of dic
+        Keyworded arguments for each run of the fit in custom mode (see lmfit)
+    - plt_opt: dic
+        Format and resolution of the figures: {'format'='tiff', 'dpi'=300}
+    - Hs: list
+        Nominal integrals for the components
+    - I0: list or None
+        Initial guess for the concentrations
     """
     # Get the dictionary of parameters
     dic = read_input_file(filename)

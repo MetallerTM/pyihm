@@ -205,6 +205,8 @@ def main(M, components, bds, lims, Hs, c_idx, I0=None):
         Number of protons each spectrum integrates for
     - c_idx: list
         index of the components that are actually used in the fit
+    - I0: list 
+        Initial guess for the concentrations. If None, 1 is used for each spectrum
     -----------
     Returns:
     - param: lmfit.Parameters object
